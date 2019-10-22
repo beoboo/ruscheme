@@ -3,10 +3,8 @@ use std::iter::Peekable;
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     Number(i64),
-    LeftParen,
-    RightParen,
-    Plus,
-    Minus,
+    Paren(char),
+    Operator(String),
     EOF,
 }
 
@@ -47,17 +45,19 @@ impl Lexer {
             match c {
                 '0'...'9' => {
                     self.number(&mut it);
-                },
-                '+' => {}
+                }
+                '+' | '-' | '*' | '/' => {
+                    self.operator(&mut it);
+                }
                 ' ' | '\t' => {
                     it.next();
-                },
+                }
                 '\n' => {
                     self.line += 1;
                     it.next();
-                },
+                }
                 _ => {
-                    return Err(format!("Unexpected char: {}", c))
+                    return Err(format!("Unexpected char: {}", c));
                 }
             }
         }
@@ -66,7 +66,7 @@ impl Lexer {
         Ok(self.tokens.clone())
     }
 
-    fn number<T: Iterator<Item = char>>(&mut self, it: &mut Peekable<T>) {
+    fn number<T: Iterator<Item=char>>(&mut self, it: &mut Peekable<T>) {
         let mut number = 0;
 
         while let Some(Ok(digit)) = it.peek().map(|c| c.to_string().parse::<i64>()) {
@@ -76,6 +76,24 @@ impl Lexer {
         }
 
         self.add_token(TokenType::Number(number));
+    }
+
+    fn operator<T: Iterator<Item=char>>(&mut self, it: &mut Peekable<T>) {
+        let c = it.next().unwrap();
+        let mut op = c.to_string();
+        match c {
+            '>' | '<' | '=' | '!' => {
+                if let Some(&c1) = it.peek() {
+                    match c1 {
+                        '=' => { op.push(c1); }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        self.add_token(TokenType::Operator(op));
     }
 
     fn add_token(&mut self, token_type: TokenType) {
@@ -108,6 +126,18 @@ mod tests {
         assert_token(&tokens[1], &TokenType::Number(456), 1);
         assert_token(&tokens[0], &TokenType::Number(123), 1);
         assert_token(&tokens[2], &TokenType::EOF, 2);
+    }
+
+    #[test]
+    fn parse_operators() {
+        let mut lexer = Lexer::new();
+        let tokens = lexer.lex("+ - * /".to_string()).unwrap();
+
+        assert_that!(&tokens, len(5));
+        assert_token(&tokens[0], &TokenType::Operator("+".to_string()), 1);
+        assert_token(&tokens[1], &TokenType::Operator("-".to_string()), 1);
+        assert_token(&tokens[2], &TokenType::Operator("*".to_string()), 1);
+        assert_token(&tokens[3], &TokenType::Operator("/".to_string()), 1);
     }
 
     fn assert_token(token: &Token, token_type: &TokenType, line: u32) {
