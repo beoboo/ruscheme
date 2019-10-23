@@ -38,7 +38,7 @@ impl Lexer {
                     it.next();
                 }
                 _ => {
-                    return Err(format!("Unexpected char: {}", c));
+                    self.identifier(&mut it);
                 }
             }
         }
@@ -52,6 +52,29 @@ impl Lexer {
             '0'..='9' => true,
             _ => false
         }
+    }
+
+    fn is_alphanum(&self, ch: &char) -> bool {
+        match ch {
+            '0'..='9' | 'a'..='z' | 'A'..= 'Z' | '?' | '_' | '$' => true,
+            _ => false
+        }
+    }
+
+    fn identifier<T: Iterator<Item=char>>(&mut self, it: &mut Peekable<T>) {
+        let mut id = String::new();
+
+        while it.peek().is_some() && self.is_alphanum(it.peek().unwrap()) {
+            id.push(it.next().unwrap());
+        }
+
+        let token_type = match id.as_ref() {
+            "true" => TokenType::Bool(true),
+            "false" => TokenType::Bool(false),
+            _ => TokenType::Symbol(id)
+        };
+
+        self.add_token(token_type);
     }
 
     fn number<T: Iterator<Item=char>>(&mut self, it: &mut Peekable<T>) {
@@ -111,6 +134,17 @@ mod tests {
 
         assert_that!(&tokens, len(1));
         assert_token(&tokens[0], &TokenType::EOF, 1);
+    }
+
+    #[test]
+    fn lex_booleans() {
+        let mut lexer = Lexer::new();
+        let tokens = lexer.lex("true false").unwrap();
+
+        assert_that!(&tokens, len(3));
+        assert_token(&tokens[0], &TokenType::Bool(true), 1);
+        assert_token(&tokens[1], &TokenType::Bool(false), 1);
+        assert_token(&tokens[2], &TokenType::EOF, 1);
     }
 
     #[test]

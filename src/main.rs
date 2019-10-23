@@ -8,6 +8,7 @@ use crate::evaluator::*;
 use crate::lexer::*;
 use crate::parser::*;
 use colored::*;
+use crate::environment::Environment;
 
 mod lexer;
 mod parser;
@@ -27,8 +28,6 @@ fn main() {
 
 fn run(source: &str) {
     let mut lexer: Lexer = Lexer::new();
-    let parser: Parser = Parser::new();
-    let evaluator: Evaluator = Evaluator::new();
 
     let res = lexer.lex(source);
     let tokens;
@@ -47,6 +46,7 @@ fn run(source: &str) {
 //    }
 //    println!();
 
+    let parser: Parser = Parser::new();
     let res = parser.parse(tokens);
     let expressions;
 
@@ -58,15 +58,18 @@ fn run(source: &str) {
         }
     };
 
-//    println!("{} expression{}:", &expressions.len(), if expressions.len() != 1 { "s" } else { "" });
-//    for expr in &expressions {
-//        println!("- {:?}", expr);
-//    }
-//    println!();
+    println!("{} expression{}:", &expressions.len(), if expressions.len() != 1 { "s" } else { "" });
+    for expr in &expressions {
+        println!("- {:?}", expr);
+    }
+    println!();
+
+    let globals = Environment::global();
+    let evaluator: Evaluator = Evaluator::new(globals);
 
     for expr in expressions {
         match evaluator.evaluate(&expr) {
-            Ok(res) => println!("{}", res.green()),
+            Ok(res) => println!("{}", res.to_string().green()),
             Err(e) => eprintln!("{}", format!("Evaluating error: {}", e).red())
         }
     }

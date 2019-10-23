@@ -33,6 +33,7 @@ impl Parser {
 
     fn parse_token(&self, token: &Token, it: &mut Iter<Token>) -> Result<Expr, String> {
         match &token.token_type {
+            TokenType::Bool(b) => Ok(Expr::Bool(*b)),
             TokenType::Number(n) => Ok(Expr::Number(*n)),
             TokenType::Symbol(s) => Ok(Expr::Symbol(s.clone())),
             TokenType::Paren('(') => self.expression(it),
