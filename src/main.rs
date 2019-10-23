@@ -4,6 +4,7 @@ extern crate hamcrest2;
 
 use std::{env, fs, io, io::Write};
 
+use crate::evaluator::*;
 use crate::lexer::*;
 use crate::parser::*;
 
@@ -11,6 +12,7 @@ mod lexer;
 mod parser;
 mod token;
 mod expr;
+mod evaluator;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -24,6 +26,7 @@ fn main() {
 fn run(source: &str) {
     let mut lexer: Lexer = Lexer::new();
     let parser: Parser = Parser::new();
+    let evaluator: Evaluator = Evaluator::new();
 
     let res = lexer.lex(source);
     let tokens;
@@ -36,11 +39,12 @@ fn run(source: &str) {
         }
     };
 
-    println!("{} tokens", &tokens.len());
+    println!("{} token{}:", &tokens.len(), if tokens.len() != 1 { "s" } else { "" });
     for token in &tokens {
-        println!("Token: {:?}", token);
+        println!("- {:?}", token);
     }
 
+    println!();
     let res = parser.parse(tokens);
     let expressions;
 
@@ -52,9 +56,11 @@ fn run(source: &str) {
         }
     };
 
-    println!("{} expressions!", &expressions.len());
-    for expr in &expressions {
-        println!("{}", expr.eval());
+    println!("{} expression{}:", &expressions.len(), if expressions.len() != 1 { "s" } else { "" });
+    for expr in expressions {
+        println!("- {:?}", expr);
+        println!();
+        println!("Result: {}", evaluator.evaluate(expr).unwrap());
     }
 }
 
