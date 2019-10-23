@@ -24,7 +24,7 @@ impl Lexer {
                     self.number(&mut it);
                 }
                 '+' | '-' | '*' | '/' => {
-                    self.operator(&mut it);
+                    self.symbol(&mut it);
                 }
                 '(' | ')' => {
                     it.next();
@@ -47,19 +47,34 @@ impl Lexer {
         Ok(self.tokens.clone())
     }
 
-    fn number<T: Iterator<Item=char>>(&mut self, it: &mut Peekable<T>) {
-        let mut number = 0;
-
-        while let Some(Ok(digit)) = it.peek().map(|c| c.to_string().parse::<i64>()) {
-            number *= 10;
-            number += digit;
-            it.next();
+    fn is_digit(&self, ch: &char) -> bool {
+        match ch {
+            '0'..='9' => true,
+            _ => false
         }
+    }
+
+    fn number<T: Iterator<Item=char>>(&mut self, it: &mut Peekable<T>) {
+        let mut number = String::new();
+
+        while self.is_digit(it.peek().unwrap()) {
+            number.push(it.next().unwrap());
+        }
+
+        if it.peek() == Some(&'.') {
+            number.push(it.next().unwrap()); // Consume '.'
+
+            while self.is_digit(it.peek().unwrap()) {
+                number.push(it.next().unwrap());
+            }
+        }
+
+        let number = number.parse::<f64>().unwrap();
 
         self.add_token(TokenType::Number(number));
     }
 
-    fn operator<T: Iterator<Item=char>>(&mut self, it: &mut Peekable<T>) {
+    fn symbol<T: Iterator<Item=char>>(&mut self, it: &mut Peekable<T>) {
         let c = it.next().unwrap();
         let mut op = c.to_string();
         match c {
@@ -74,7 +89,7 @@ impl Lexer {
             _ => {}
         }
 
-        self.add_token(TokenType::Operator(op));
+        self.add_token(TokenType::Symbol(op));
     }
 
     fn add_token(&mut self, token_type: TokenType) {
@@ -101,24 +116,24 @@ mod tests {
     #[test]
     fn lex_numbers() {
         let mut lexer = Lexer::new();
-        let tokens = lexer.lex("123 456\n").unwrap();
+        let tokens = lexer.lex("123 4.56\n").unwrap();
 
         assert_that!(&tokens, len(3));
-        assert_token(&tokens[0], &TokenType::Number(123), 1);
-        assert_token(&tokens[1], &TokenType::Number(456), 1);
+        assert_token(&tokens[0], &TokenType::Number(123.0), 1);
+        assert_token(&tokens[1], &TokenType::Number(4.56), 1);
         assert_token(&tokens[2], &TokenType::EOF, 2);
     }
 
     #[test]
-    fn lex_operators() {
+    fn lex_symbols() {
         let mut lexer = Lexer::new();
         let tokens = lexer.lex("+ - * /").unwrap();
 
         assert_that!(&tokens, len(5));
-        assert_token(&tokens[0], &TokenType::Operator("+".to_string()), 1);
-        assert_token(&tokens[1], &TokenType::Operator("-".to_string()), 1);
-        assert_token(&tokens[2], &TokenType::Operator("*".to_string()), 1);
-        assert_token(&tokens[3], &TokenType::Operator("/".to_string()), 1);
+        assert_token(&tokens[0], &TokenType::Symbol("+".to_string()), 1);
+        assert_token(&tokens[1], &TokenType::Symbol("-".to_string()), 1);
+        assert_token(&tokens[2], &TokenType::Symbol("*".to_string()), 1);
+        assert_token(&tokens[3], &TokenType::Symbol("/".to_string()), 1);
         assert_token(&tokens[4], &TokenType::EOF, 1);
     }
 

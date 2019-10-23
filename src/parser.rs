@@ -15,32 +15,47 @@ impl Parser {
         if tokens.len() == 0 {
             return Err(format!("No tokens available"));
         }
-        let mut exprs = Vec::new();
         let mut it = tokens.iter();
+        let mut exprs = Vec::new();
 
         while let Some(token) = it.next() {
-            match &token.token_type {
-                TokenType::Number(n) => exprs.push(Expr::Number(*n)),
-                TokenType::Operator(op) => exprs.push(self.expression(op, &mut it)),
-                TokenType::EOF => {}
-                t => return Err(format!("Undefined token type: {:?}", t))
-            };
+            if token.is(TokenType::EOF) {
+                break;
+            }
+
+            match self.parse_token(token, &mut it) {
+                Ok(expr) => exprs.push(expr),
+                Err(e) => return Err(e)
+            }
         }
         Ok(exprs)
     }
 
-    fn expression(&self, operator: &String, it: &mut Iter<Token>) -> Expr {
-        let mut operands: Vec<Expr> = Vec::new();
+    fn parse_token(&self, token: &Token, it: &mut Iter<Token>) -> Result<Expr, String> {
+        match &token.token_type {
+            TokenType::Number(n) => Ok(Expr::Number(*n)),
+            TokenType::Symbol(s) => Ok(Expr::Symbol(s.clone())),
+            TokenType::Paren('(') => self.expression(it),
+            t => Err(format!("Undefined token type: {:?}", t))
+        }
+    }
+
+    fn expression(&self, it: &mut Iter<Token>) -> Result<Expr, String> {
+        let mut list: Vec<Expr> = Vec::new();
 
         while let Some(token) = it.next() {
             match &token.token_type {
-                TokenType::Number(n) => operands.push(Expr::Number(*n)),
-                TokenType::EOF => {}
-                t => panic!("Undefined token type: {:?}", t)
+                TokenType::Paren(')') => break,
+                _ => {
+                    match self.parse_token(token, it) {
+                        Ok(expr) => list.push(expr),
+                        Err(e) => return Err(e)
+                    }
+                },
             };
         }
 
-        Expr::Expression(operator.clone(), operands)
+        Ok(Expr::Expression(list))
     }
 }
 
@@ -59,7 +74,7 @@ mod tests {
     #[test]
     fn parse_number() {
         let parser = Parser::new();
-        let tokens = vec![Token::new(TokenType::Number(123), 0), Token::new(TokenType::EOF, 0)];
+        let tokens = vec![Token::new(TokenType::Number(123.0), 0), Token::new(TokenType::EOF, 0)];
         let exprs = parser.parse(tokens).unwrap();
 
         assert_that!(&exprs, len(1));
@@ -69,19 +84,13 @@ mod tests {
     fn parse_operation() {
         let parser = Parser::new();
         let tokens = vec![
-            Token::new(TokenType::Operator("+".to_string()), 0),
-            Token::new(TokenType::Number(123), 0),
-            Token::new(TokenType::Number(456), 0),
+            Token::new(TokenType::Symbol("+".to_string()), 0),
+            Token::new(TokenType::Number(123.0), 0),
+            Token::new(TokenType::Number(456.0), 0),
             Token::new(TokenType::EOF, 0)];
         let exprs = parser.parse(tokens).unwrap();
 
-        assert_that!(&exprs, len(1));
-        assert_that!(exprs[0].clone(), equal_to(Expr::Expression("+".to_string(), vec![Expr::Number(123), Expr::Number(456)])));
+        assert_that!(&exprs, len(3));
+        assert_that!(exprs, equal_to(vec![Expr::Symbol("+".to_string()), Expr::Number(123.0), Expr::Number(456.0)]));
     }
-//
-//    fn assert_expression(expression: &Expr, expression_type: &Expr) {
-//        assert_that!(&expression, equal_to(expression_type));
-//        assert_that!(token.line, equal_to(line));
-//    }
-
 }

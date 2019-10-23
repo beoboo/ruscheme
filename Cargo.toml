@@ -5,4 +5,7 @@ authors = ["Pietrino Atzeni <pietrino.atzeni@moneyfarm.com>"]
 edition = "2018"
 
 [dependencies]
+colored = "*"
+
+[dev-dependencies]
 hamcrest2 = "*"

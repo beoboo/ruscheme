@@ -7,12 +7,14 @@ use std::{env, fs, io, io::Write};
 use crate::evaluator::*;
 use crate::lexer::*;
 use crate::parser::*;
+use colored::*;
 
 mod lexer;
 mod parser;
 mod token;
 mod expr;
 mod evaluator;
+mod environment;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -34,33 +36,39 @@ fn run(source: &str) {
     match res {
         Ok(t) => tokens = t,
         Err(e) => {
-            println!("Lexing error: {}", e);
+            eprintln!("{}", format!("Lexing error: {}", e).red());
             return;
         }
     };
 
-    println!("{} token{}:", &tokens.len(), if tokens.len() != 1 { "s" } else { "" });
-    for token in &tokens {
-        println!("- {:?}", token);
-    }
+//    println!("{} token{}:", &tokens.len(), if tokens.len() != 1 { "s" } else { "" });
+//    for token in &tokens {
+//        println!("- {:?}", token);
+//    }
+//    println!();
 
-    println!();
     let res = parser.parse(tokens);
     let expressions;
 
     match res {
         Ok(exprs) => expressions = exprs,
         Err(e) => {
-            println!("Parsing error: {}", e);
+            eprintln!("{}", format!("Parsing error: {}", e).red());
             return;
         }
     };
 
-    println!("{} expression{}:", &expressions.len(), if expressions.len() != 1 { "s" } else { "" });
+//    println!("{} expression{}:", &expressions.len(), if expressions.len() != 1 { "s" } else { "" });
+//    for expr in &expressions {
+//        println!("- {:?}", expr);
+//    }
+//    println!();
+
     for expr in expressions {
-        println!("- {:?}", expr);
-        println!();
-        println!("Result: {}", evaluator.evaluate(expr).unwrap());
+        match evaluator.evaluate(&expr) {
+            Ok(res) => println!("{}", res.green()),
+            Err(e) => eprintln!("{}", format!("Evaluating error: {}", e).red())
+        }
     }
 }
 

@@ -1,8 +1,8 @@
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
-    Number(i64),
+    Number(f64),
     Paren(char),
-    Operator(String),
+    Symbol(String),
     EOF,
 }
 
@@ -18,5 +18,9 @@ impl Token {
             token_type,
             line,
         }
+    }
+
+    pub fn is(&self, token_type: TokenType) -> bool {
+        self.token_type == token_type
     }
 }
