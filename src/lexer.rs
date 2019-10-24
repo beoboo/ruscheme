@@ -23,7 +23,7 @@ impl Lexer {
                 '0'..='9' => {
                     self.number(&mut it);
                 }
-                '+' | '-' | '*' | '/' => {
+                '+' | '-' | '*' | '/' | '=' | '<' | '>' => {
                     self.symbol(&mut it);
                 }
                 '(' | ')' => {
@@ -100,12 +100,13 @@ impl Lexer {
     fn symbol<T: Iterator<Item=char>>(&mut self, it: &mut Peekable<T>) {
         let c = it.next().unwrap();
         let mut op = c.to_string();
+
         match c {
-            '>' | '<' | '=' | '!' => {
+            '>' | '<' => {
                 if let Some(&c1) = it.peek() {
-                    match c1 {
-                        '=' => { op.push(c1); }
-                        _ => {}
+                    if c1 == '=' {
+                        it.next();
+                        op.push(c1);
                     }
                 }
             }

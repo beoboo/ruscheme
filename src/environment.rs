@@ -2,6 +2,34 @@ use std::collections::HashMap;
 
 use crate::expr::Expr;
 
+macro_rules! compare_floats {
+    ($check_fn:expr) => {{
+        |args: Vec<Expr>| -> Result<Expr, String> {
+            if args.len() < 2 {
+                return Err(format!("At least 2 arguments required."));
+            }
+
+            let floats = match parse_floats(args) {
+                Ok(nums) => nums,
+                Err(e) => return Err(e)
+            };
+
+            let (first, rest) = floats.split_first().unwrap();
+            let first = *first;
+
+            fn compare(first: f64, rest: &[f64]) -> bool {
+                match rest.first() {
+                    Some(x) => $check_fn(first, *x) && compare(*x, &rest[1..]),
+                    None => true
+                }
+            }
+
+            Ok(Expr::Bool(compare(first, rest)))
+        }
+    }}
+}
+
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Environment {
     keys: HashMap<String, Expr>
@@ -21,41 +49,32 @@ impl Environment {
                 return Err(format!("At least 1 argument required."));
             }
 
-            let mut res = 0.0;
-
-            for arg in args {
-                match arg.to_f64() {
-                    Ok(n) => res += n,
-                    Err(e) => return Err(e)
-                }
+            match parse_floats(args) {
+                Ok(nums) => Ok(Expr::Number(nums.iter().sum())),
+                Err(e) => Err(e)
             }
-
-            Ok(Expr::Number(res))
         }));
 
         environment.define("-", Expr::Func(|args: Vec<Expr>| -> Result<Expr, String> {
             if args.len() == 0 {
                 return Err(format!("At least 1 argument required."));
             }
-            let (res, rest) = args.split_first().unwrap();
-            let mut res = match res.to_f64() {
-                Ok(n) => n,
+
+            let floats = match parse_floats(args) {
+                Ok(nums) => nums,
                 Err(e) => return Err(e)
             };
 
-            if rest.len() == 0 {
-                return Ok(Expr::Number(-res))
+            let (first, rest) = floats.split_first().unwrap();
+            let first = *first;
+
+            if floats.len() == 1 {
+                return Ok(Expr::Number(-first));
             }
 
-            for arg in rest {
-                res = res - match arg.to_f64() {
-                    Ok(n) => n,
-                    Err(e) => return Err(e)
-                };
-            }
+            let res = rest.iter().fold(first, |sum, a| sum - *a);
 
             Ok(Expr::Number(res))
-
         }));
 
         environment.define("*", Expr::Func(|args: Vec<Expr>| -> Result<Expr, String> {
@@ -63,16 +82,10 @@ impl Environment {
                 return Err(format!("At least 1 argument required."));
             }
 
-            let mut res = 1.0;
-
-            for arg in args {
-                match arg.to_f64() {
-                    Ok(n) => res *= n,
-                    Err(e) => return Err(e)
-                }
+            match parse_floats(args) {
+                Ok(nums) => Ok(Expr::Number(nums.iter().fold(1.0, |sum, a| sum * *a))),
+                Err(e) => Err(e)
             }
-
-            Ok(Expr::Number(res))
         }));
 
         environment.define("/", Expr::Func(|args: Vec<Expr>| -> Result<Expr, String> {
@@ -80,22 +93,24 @@ impl Environment {
                 return Err(format!("At least 2 arguments required."));
             }
 
-            let (res, rest) = args.split_first().unwrap();
-            let mut res = match res.to_f64() {
-                Ok(n) => n,
+            let floats = match parse_floats(args) {
+                Ok(nums) => nums,
                 Err(e) => return Err(e)
             };
 
-            for arg in rest {
-                res /= match arg.to_f64() {
-                    Ok(n) => n,
-                    Err(e) => return Err(e)
-                }
-            }
+            let (first, rest) = floats.split_first().unwrap();
+            let first = *first;
+
+            let res = rest.iter().fold(first, |sum, a| sum / *a);
 
             Ok(Expr::Number(res))
         }));
 
+        environment.define("=", Expr::Func(compare_floats!(|a, b| a == b)));
+        environment.define("<", Expr::Func(compare_floats!(|a, b| a < b)));
+        environment.define(">", Expr::Func(compare_floats!(|a, b| a > b)));
+        environment.define("<=", Expr::Func(compare_floats!(|a, b| a <= b)));
+        environment.define(">=", Expr::Func(compare_floats!(|a, b| a >= b)));
 
         environment
     }
@@ -112,6 +127,18 @@ impl Environment {
     }
 }
 
+fn parse_floats(args: Vec<Expr>) -> Result<Vec<f64>, String> {
+    let mut floats = Vec::new();
+
+    for arg in args {
+        match arg.to_f64() {
+            Ok(n) => floats.push(n),
+            Err(e) => return Err(e)
+        }
+    }
+
+    Ok(floats)
+}
 
 #[cfg(test)]
 mod tests {
@@ -128,7 +155,7 @@ mod tests {
     #[test]
     fn check_globals() {
         let environment = Environment::global();
-        assert_that!(environment.keys.len(), equal_to(4));
+        assert_that!(environment.keys.len(), equal_to(9));
     }
 
     #[test]
@@ -136,7 +163,7 @@ mod tests {
         let mut environment = Environment::new();
         environment.define("a", Expr::Number(123.0));
 
-        assert_that!(environment.get("a").unwrap(), equal_to(&Expr::Number(123.0)));
+        assert_that!(environment.get("a").unwrap(), equal_to(& Expr::Number(123.0)));
     }
 
     #[test]
@@ -146,6 +173,6 @@ mod tests {
         let expected = expr.clone();
         environment.define("a", expr);
 
-        assert_that!(environment.get("a").unwrap(), equal_to(&expected));
+        assert_that!(environment.get("a").unwrap(), equal_to( & expected));
     }
 }

@@ -68,7 +68,7 @@ mod tests {
     }
 
     #[test]
-    fn eval_eval() {
+    fn eval_expressions() {
         assert_eval(Expr::Expression(vec![Expr::Symbol("+".to_string()), Expr::Number(137.0), Expr::Number(349.0)]), Expr::Number(486.0));
         assert_eval(Expr::Expression(vec![Expr::Symbol("-".to_string()), Expr::Number(1000.0)]), Expr::Number(-1000.0));
         assert_eval(Expr::Expression(vec![Expr::Symbol("-".to_string()), Expr::Number(1000.0), Expr::Number(334.0)]), Expr::Number(666.0));
@@ -76,6 +76,15 @@ mod tests {
         assert_eval(Expr::Expression(vec![Expr::Symbol("/".to_string()), Expr::Number(10.0), Expr::Number(5.0)]), Expr::Number(2.0));
         assert_eval(Expr::Expression(vec![Expr::Symbol("+".to_string()), Expr::Number(2.7), Expr::Number(10.0)]), Expr::Number(12.7));
         assert_eval(Expr::Expression(vec![Expr::Symbol("+".to_string()), Expr::Expression(vec![Expr::Symbol("+".to_string()), Expr::Number(1.0)])]), Expr::Number(1.0));
+    }
+
+    #[test]
+    fn eval_booleans() {
+        assert_eval(Expr::Expression(vec![Expr::Symbol("=".to_string()), Expr::Number(1.0), Expr::Number(2.0)]), Expr::Bool(false));
+        assert_eval(Expr::Expression(vec![Expr::Symbol("<".to_string()), Expr::Number(1.0), Expr::Number(2.0)]), Expr::Bool(true));
+        assert_eval(Expr::Expression(vec![Expr::Symbol(">".to_string()), Expr::Number(1.0), Expr::Number(2.0)]), Expr::Bool(false));
+        assert_eval(Expr::Expression(vec![Expr::Symbol("<=".to_string()), Expr::Number(1.0), Expr::Number(2.0)]), Expr::Bool(true));
+        assert_eval(Expr::Expression(vec![Expr::Symbol(">=".to_string()), Expr::Number(1.0), Expr::Number(2.0)]), Expr::Bool(false));
     }
 
     #[test]
