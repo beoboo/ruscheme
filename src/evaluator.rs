@@ -32,7 +32,16 @@ impl Evaluator {
     fn form(&self, name: &str, args: Vec<Expr>) -> Result<Expr, String> {
         if let Ok(expr) = self.environment.get(name) {
             match expr {
-                Expr::Func(f) => f(args),
+                Expr::Func(f) => {
+                    let mut evaluated_args = Vec::new();
+                    for arg in args {
+                        match self.evaluate(&arg) {
+                            Ok(e) => evaluated_args.push(e),
+                            Err(e) => return Err(e),
+                        }
+                    }
+                    f(evaluated_args)
+                },
                 _ => Err(format!("Undefined procedure \"{}\".", name))
             }
         } else {
@@ -66,6 +75,7 @@ mod tests {
         assert_eval(Expr::Expression(vec![Expr::Symbol("*".to_string()), Expr::Number(5.0), Expr::Number(99.0)]), Expr::Number(495.0));
         assert_eval(Expr::Expression(vec![Expr::Symbol("/".to_string()), Expr::Number(10.0), Expr::Number(5.0)]), Expr::Number(2.0));
         assert_eval(Expr::Expression(vec![Expr::Symbol("+".to_string()), Expr::Number(2.7), Expr::Number(10.0)]), Expr::Number(12.7));
+        assert_eval(Expr::Expression(vec![Expr::Symbol("+".to_string()), Expr::Expression(vec![Expr::Symbol("+".to_string()), Expr::Number(1.0)])]), Expr::Number(1.0));
     }
 
     #[test]
