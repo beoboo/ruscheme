@@ -106,6 +106,17 @@ mod tests {
     }
 
     #[test]
+    fn eval_invalid_expression() {
+        assert_invalid("define a 2", "\"define\" cannot be used outside expression.".to_string());
+        assert_invalid("u", "Undefined identifier: \"u\".".to_string());
+        assert_invalid("(123)", "Undefined form: \"123\".".to_string());
+        assert_invalid("(+)", "At least 1 argument required.".to_string());
+        assert_invalid("(-)", "At least 1 argument required.".to_string());
+        assert_invalid("(*)", "At least 1 argument required.".to_string());
+        assert_invalid("(/)", "At least 2 arguments required.".to_string());
+    }
+
+    #[test]
     fn eval_definitions() {
         assert_definition(Expr::Expression(vec![
             Expr::Definition("a2".to_string(), Box::new(
@@ -166,17 +177,6 @@ mod tests {
         };
     }
 
-    #[test]
-    fn eval_invalid_expression() {
-        assert_invalid(Expr::Definition("a".to_string(), Box::new(Expr::Number(2.0))), "\"define\" cannot be used outside expression.".to_string());
-        assert_invalid(Expr::Identifier("u".to_string()), "Undefined identifier: \"u\".".to_string());
-        assert_invalid(Expr::Expression(vec![Expr::Number(123.0)]), "Undefined form: \"123\".".to_string());
-        assert_invalid(Expr::Expression(vec![Expr::Identifier("+".to_string())]), "At least 1 argument required.".to_string());
-        assert_invalid(Expr::Expression(vec![Expr::Identifier("-".to_string())]), "At least 1 argument required.".to_string());
-        assert_invalid(Expr::Expression(vec![Expr::Identifier("*".to_string())]), "At least 1 argument required.".to_string());
-        assert_invalid(Expr::Expression(vec![Expr::Identifier("/".to_string())]), "At least 2 arguments required.".to_string());
-    }
-
     fn assert_definition(expr: Expr, expected_name: Expr, expected_definition: Expr) {
         let evaluator = Evaluator::new();
         let mut globals = Environment::global();
@@ -190,51 +190,45 @@ mod tests {
     }
 
     fn assert_eval(expr: &str, expected: Expr) {
-        let res = eval2(expr);
+        let mut globals = Environment::global();
+        let res = eval(expr, &mut globals);
 
-        assert_that!(res, equal_to(expected));
+        assert_that!(res.unwrap(), equal_to(expected));
     }
 
-    fn assert_invalid(expr: Expr, err: String) {
-        let res = eval(expr);
+    fn assert_invalid(expr: &str, err: String) {
+        let mut globals = Environment::global();
+        let res = eval(expr, &mut globals);
 
         assert_that!(res.err(), equal_to(Some(err)));
     }
 
-    fn eval(expr: Expr) -> Result<Expr, String> {
-        let evaluator = Evaluator::new();
-        let mut globals = Environment::global();
-
-        evaluator.evaluate(&expr, &mut globals)
-    }
-
-    fn eval2(source: &str) -> Expr {
+    fn eval(source: &str, globals: &mut Environment) -> Result<Expr, String> {
         let lexer = Lexer::new();
         let parser = Parser::new();
         let evaluator = Evaluator::new();
-        let mut globals = Environment::global();
 
         let tokens = match lexer.lex(source) {
             Ok(tokens) => tokens,
-            Err(e) => panic!("Lexing error: {}.", e),
+            Err(e) => return Err(format!("Lexing error: {}.", e))
         };
 
         let exprs = match parser.parse(tokens) {
             Ok(exprs) => exprs,
-            Err(e) => panic!("Parsing error: {}.", e),
+            Err(e) => return Err(format!("Parsing error: {}.", e))
         };
 
         let mut res = None;
         for expr in exprs {
-            res = match evaluator.evaluate(&expr, &mut globals) {
+            res = match evaluator.evaluate(&expr, globals) {
                 Ok(expr) => Some(expr),
-                Err(e) => panic!("Evaluating error: {}.", e)
+                Err(e) => return Err(e)
             }
         }
 
         match res {
-            Some(result) => result,
-            None => panic!("No expressions to evaluate.")
+            Some(result) => Ok(result),
+            None => Err(format!("No expressions to evaluate."))
         }
     }
 }
