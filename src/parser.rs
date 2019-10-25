@@ -45,14 +45,17 @@ impl Parser {
     fn definition(&self, it: &mut Iter<Token>) -> Result<Expr, String> {
         let token = match it.next() {
             Some(token) => token,
-            None => return Err(format!("Expected name after define."))
+            None => return Err(format!("Expected token."))
         };
 
-        let name = match &token.token_type {
-            TokenType::Identifier(s) => s.to_string(),
-            _ => return Err(format!("Expected name after define."))
-        };
+        match &token.token_type {
+            TokenType::Identifier(s) => self.define_symbol(s, it),
+            TokenType::Paren('(') => self.define_procedure(it),
+            _ => return Err(format!("Expected name or '(' after define."))
+        }
+    }
 
+    fn define_symbol(&self, name: &str, it: &mut Iter<Token>) -> Result<Expr, String> {
         let token = match it.next() {
             Some(token) => token,
             None => return Err(format!("Expected expression after name."))
@@ -65,10 +68,54 @@ impl Parser {
                 Ok(expr) => expr,
                 Err(e) => return Err(e),
             },
-            _ => return Err(format!("Expected valid expression after name."))
+            t => return Err(format!("Expected expression after name (found: {}).", t))
         };
 
-        Ok(Expr::Definition(name, Box::new(expr)))
+        Ok(Expr::Definition(name.to_string(), Box::new(expr)))
+    }
+
+    fn define_procedure(&self, it: &mut Iter<Token>) -> Result<Expr, String> {
+        let token = match it.next() {
+            Some(token) => token,
+            None => return Err(format!("Expected procedure name."))
+        };
+
+        let name = match &token.token_type {
+            TokenType::Identifier(s) => Expr::Identifier(s.clone()),
+            _ => return Err(format!("Expected procedure name."))
+        };
+
+        let mut args: Vec<Expr> = Vec::new();
+
+        while let Some(token) = it.next() {
+            match &token.token_type {
+                TokenType::Paren(')') => break,
+                _ => {
+                    match self.parse_token(token, it) {
+                        Ok(expr) => args.push(expr),
+                        Err(e) => return Err(e)
+                    }
+                }
+            };
+        }
+
+        let token = match it.next() {
+            Some(token) => token,
+            None => return Err(format!("Expected procedure body."))
+        };
+
+        let expr = match &token.token_type {
+            TokenType::Identifier(s) => Expr::Identifier(s.clone()),
+            TokenType::Paren('(') => match self.expression(it) {
+                Ok(expr) => expr,
+                Err(e) => return Err(e),
+            },
+            _ => return Err(format!("Expected procedure body."))
+        };
+
+        let procedure = Expr::Procedure(name.to_string(), args, Box::new(expr));
+
+        Ok(Expr::Definition(name.to_string(), Box::new(procedure)))
     }
 
     fn expression(&self, it: &mut Iter<Token>) -> Result<Expr, String> {
@@ -94,8 +141,9 @@ impl Parser {
 mod tests {
     use hamcrest2::prelude::*;
 
-    use super::*;
     use crate::lexer::Lexer;
+
+    use super::*;
 
     #[test]
     fn parse_empty() {

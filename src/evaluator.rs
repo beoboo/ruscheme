@@ -1,5 +1,6 @@
 use crate::environment::Environment;
 use crate::expr::Expr;
+use std::ops::Deref;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Evaluator {}
@@ -11,12 +12,18 @@ impl Evaluator {
 
     pub fn evaluate(&self, expr: &Expr, env: &mut Environment) -> Result<Expr, String> {
         match expr {
+            Expr::Empty => Ok(expr.clone()),
+            Expr::Bool(_) => Ok(expr.clone()),
+            Expr::Number(_) => Ok(expr.clone()),
+            Expr::Func(_, _) => Ok(expr.clone()),
             Expr::Definition(_, _) => return Err(format!("\"define\" cannot be used outside expression.")),
             Expr::Identifier(s) => {
                 let res = env.get(s);
 
                 match res {
-                    Ok(expr) => self.evaluate(&expr.clone(), env),
+                    Ok(expr) => {
+                        self.evaluate(&expr.clone(), env)
+                    },
                     _ => Err(format!("Undefined identifier: \"{}\".", s))
                 }
             }
@@ -35,7 +42,7 @@ impl Evaluator {
                     _ => return Err(format!("Undefined form: \"{}\".", form))
                 }
             }
-            _ => Ok(expr.clone())
+            e => panic!("Unmapped expression: {}", e)
         }
     }
 
@@ -59,6 +66,24 @@ impl Evaluator {
                     }
                 }
                 f(evaluated_args)
+            }
+            Expr::Procedure(_, params, body) => {
+                let mut enclosing = Environment::new();
+                for (i, arg) in args.iter().enumerate() {
+                    let param = match params.get(i) {
+                        Some(p) => p,
+                        None => return Err(format!("Wrong number of params"))
+                    };
+
+                    match self.evaluate(&arg, env) {
+                        Ok(e) => {
+                            enclosing.define(&param.to_string(), e)
+                        },
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                self.evaluate(body.deref(), &mut enclosing)
             }
             _ => Err(format!("Undefined procedure: \"{}\".", name))
         }
@@ -128,6 +153,19 @@ mod tests {
                           Expr::Identifier("plus_one".to_string()),
                           Expr::Expression(vec![Expr::Identifier("+".to_string()), Expr::Number(1.0)]),
         );
+
+        assert_definition("(define (square x) (* x x))",
+                          Expr::Identifier("square".to_string()),
+                          Expr::Procedure(
+                              "square".to_string(),
+                              vec![Expr::Identifier("x".to_string())],
+                              Box::new(Expr::Expression(vec![
+                                  Expr::Identifier("*".to_string()),
+                                  Expr::Identifier("x".to_string()),
+                                  Expr::Identifier("x".to_string())
+                              ])),
+                          ),
+        );
     }
 
     #[test]
@@ -136,7 +174,7 @@ mod tests {
                     (define a (+ 1))\
                     (define b a)\
                     b",
-                    Expr::Number(1.0)
+                    Expr::Number(1.0),
         );
     }
 

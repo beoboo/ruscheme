@@ -9,6 +9,7 @@ pub enum Expr {
     Definition(String, Box<Expr>),
     Expression(Vec<Expr>),
     Func(String, fn(Vec<Expr>) -> Result<Expr, String>),
+    Procedure(String, Vec<Expr>, Box<Expr>)
 }
 
 impl Expr {
@@ -28,7 +29,6 @@ impl fmt::Display for Expr {
             Expr::Number(n) => write!(f, "{}", n),
             Expr::Identifier(s) => write!(f, "{}", s),
             Expr::Definition(name, _) => write!(f, "{}", name),
-            Expr::Func(name, _) => write!(f, "procedure \"{}\"", name),
             Expr::Expression(list) => {
                 let s = list.into_iter().map(|e| e.to_string());
                 let s :Vec<String> = s.collect();
@@ -36,6 +36,8 @@ impl fmt::Display for Expr {
 
                 write!(f, "({})", s)
             }
+            Expr::Func(name, _) => write!(f, "native \"{}\"", name),
+            Expr::Procedure(name, _, _) => write!(f, "procedure \"{}\"", name),
 //            e => write!(f, "Undefined expression \"{:?}\"", e),
         }
     }

@@ -42,8 +42,9 @@ fn repl() {
             source += line.as_str();
             match run(&source, &mut globals) {
                 Err(e) => {
-//                    eprintln!("{}", format!("{}", e).red())
+                    eprintln!("{}", format!("{}", e).red())
                 }
+//                Err(_) => { }
                 _ => source = String::new(),
             };
         }
