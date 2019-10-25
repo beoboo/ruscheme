@@ -15,6 +15,7 @@ impl Parser {
         if tokens.len() == 0 {
             return Err(format!("No tokens available"));
         }
+
         let mut it = tokens.iter();
         let mut exprs = Vec::new();
 
@@ -101,16 +102,12 @@ impl Parser {
 
         let token = match it.next() {
             Some(token) => token,
-            None => return Err(format!("Expected procedure body."))
+            None => return Err(format!("Expected procedure body1."))
         };
 
-        let expr = match &token.token_type {
-            TokenType::Identifier(s) => Expr::Identifier(s.clone()),
-            TokenType::Paren('(') => match self.expression(it) {
-                Ok(expr) => expr,
-                Err(e) => return Err(e),
-            },
-            _ => return Err(format!("Expected procedure body."))
+        let expr = match self.parse_token(token, it) {
+            Ok(expr) => expr,
+            Err(e) => return Err(e),
         };
 
         let procedure = Expr::Procedure(name.to_string(), args, Box::new(expr));

@@ -31,19 +31,21 @@ macro_rules! compare_floats {
 
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Environment {
+pub struct Environment<'a> {
+    parent: Option<&'a Environment<'a>>,
     keys: HashMap<String, Expr>
 }
 
-impl Environment {
-    pub fn new() -> Environment {
+impl Environment<'_> {
+    pub fn new<'a>(parent: Option<&'a Environment>) -> Environment<'a> {
         Environment {
+            parent,
             keys: HashMap::new()
         }
     }
 
-    pub fn global() -> Environment {
-        let mut environment = Environment::new();
+    pub fn global<'a>() -> Environment<'a> {
+        let mut environment = Environment::new(None);
         environment.define_func("+", |args: Vec<Expr>| -> Result<Expr, String> {
             if args.len() == 0 {
                 return Err(format!("At least 1 argument required."));
@@ -126,7 +128,13 @@ impl Environment {
     pub fn get(&self, key: &str) -> Result<&Expr, String> {
         match self.keys.get(key) {
             Some(v) => Ok(v),
-            None => Err(format!("{} not found", key))
+            None => {
+                if let Some(p) = self.parent {
+                    p.get(key)
+                } else {
+                    Err(format!("{} not found", key))
+                }
+            }
         }
     }
 }
@@ -152,7 +160,7 @@ mod tests {
 
     #[test]
     fn check_empty() {
-        let environment = Environment::new();
+        let environment = Environment::new(None);
         assert_that!(environment.keys.len(), equal_to(0));
     }
 
@@ -164,7 +172,7 @@ mod tests {
 
     #[test]
     fn define_number() {
-        let mut environment = Environment::new();
+        let mut environment = Environment::new(None);
         environment.define("a", Expr::Number(123.0));
 
         assert_that!(environment.get("a").unwrap(), equal_to(& Expr::Number(123.0)));
@@ -172,11 +180,20 @@ mod tests {
 
     #[test]
     fn define_identifier() {
-        let mut environment = Environment::new();
+        let mut environment = Environment::new(None);
         let expr = Expr::Identifier("abc".to_string());
         let expected = expr.clone();
         environment.define("a", expr);
 
         assert_that!(environment.get("a").unwrap(), equal_to( & expected));
+    }
+
+    #[test]
+    fn enclosing() {
+        let mut environment1 = Environment::new(None);
+        environment1.define("a", Expr::Number(123.0));
+
+        let environment2 = Environment::new(Some(&environment1));
+        assert_that!(environment2.get("a").unwrap(), equal_to(& Expr::Number(123.0)));
     }
 }

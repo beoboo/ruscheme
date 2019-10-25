@@ -68,7 +68,9 @@ impl Evaluator {
                 f(evaluated_args)
             }
             Expr::Procedure(_, params, body) => {
-                let mut enclosing = Environment::new();
+                let parent = env.clone();
+                let mut enclosing = Environment::new(Some(&parent));
+                
                 for (i, arg) in args.iter().enumerate() {
                     let param = match params.get(i) {
                         Some(p) => p,
@@ -175,6 +177,20 @@ mod tests {
                     (define b a)\
                     b",
                     Expr::Number(1.0),
+        );
+    }
+
+    #[test]
+    fn eval_procedures() {
+        assert_eval("\
+                    (define (one) 1)\
+                    (one)",
+                    Expr::Number(1.0),
+        );
+        assert_eval("\
+                    (define (square x) (* x x))\
+                    (square 2)",
+                    Expr::Number(4.0),
         );
     }
 
