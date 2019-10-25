@@ -125,7 +125,7 @@ fn is_digit(ch: char) -> bool {
 
 fn is_alphanum(ch: char) -> bool {
     match ch {
-        '0'..='9' | 'a'..='z' | 'A'..='Z' | '?' | '_' | '$' => true,
+        '0'..='9' | 'a'..='z' | 'A'..='Z' | '?' | '_' | '-' | '$' => true,
         _ => false
     }
 }

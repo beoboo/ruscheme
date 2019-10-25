@@ -86,19 +86,10 @@ impl Parser {
             _ => return Err(format!("Expected procedure name."))
         };
 
-        let mut args: Vec<Expr> = Vec::new();
-
-        while let Some(token) = it.next() {
-            match &token.token_type {
-                TokenType::Paren(')') => break,
-                _ => {
-                    match self.parse_token(token, it) {
-                        Ok(expr) => args.push(expr),
-                        Err(e) => return Err(e)
-                    }
-                }
-            };
-        }
+        let params = match self.build_arguments(it) {
+            Ok(list) => list,
+            Err(e) => return Err(e)
+        };
 
         let token = match it.next() {
             Some(token) => token,
@@ -110,12 +101,19 @@ impl Parser {
             Err(e) => return Err(e),
         };
 
-        let procedure = Expr::Procedure(name.to_string(), args, Box::new(expr));
+        let procedure = Expr::Procedure(name.to_string(), params, Box::new(expr));
 
         Ok(Expr::Definition(name.to_string(), Box::new(procedure)))
     }
 
     fn expression(&self, it: &mut Iter<Token>) -> Result<Expr, String> {
+        match self.build_arguments(it) {
+            Ok(list) => Ok(Expr::Expression(list)),
+            Err(e) => Err(e)
+        }
+    }
+
+    fn build_arguments(&self, it: &mut Iter<Token>) -> Result<Vec<Expr>, String> {
         let mut list: Vec<Expr> = Vec::new();
 
         while let Some(token) = it.next() {
@@ -129,8 +127,7 @@ impl Parser {
                 }
             };
         }
-
-        Ok(Expr::Expression(list))
+        Ok(list)
     }
 }
 

@@ -70,7 +70,15 @@ impl Evaluator {
             Expr::Procedure(_, params, body) => {
                 let parent = env.clone();
                 let mut enclosing = Environment::new(Some(&parent));
-                
+
+                if params.len() != args.len() {
+                    return Err(format!(
+                        "Wrong number of arguments (required: {}, given: {}).",
+                        params.len(),
+                        args.len()
+                    ));
+                }
+
                 for (i, arg) in args.iter().enumerate() {
                     let param = match params.get(i) {
                         Some(p) => p,
@@ -134,7 +142,7 @@ mod tests {
     }
 
     #[test]
-    fn eval_invalid_expression() {
+    fn eval_invalid() {
         assert_invalid("define a 2", "\"define\" cannot be used outside expression.".to_string());
         assert_invalid("u", "Undefined identifier: \"u\".".to_string());
         assert_invalid("(123)", "Undefined form: \"123\".".to_string());
@@ -142,6 +150,8 @@ mod tests {
         assert_invalid("(-)", "At least 1 argument required.".to_string());
         assert_invalid("(*)", "At least 1 argument required.".to_string());
         assert_invalid("(/)", "At least 2 arguments required.".to_string());
+        assert_invalid("(define (a x) x)(a)", "Wrong number of arguments (required: 1, given: 0).".to_string());
+        assert_invalid("(define (a x) x)(a 1 2)", "Wrong number of arguments (required: 1, given: 2).".to_string());
     }
 
     #[test]
