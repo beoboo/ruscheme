@@ -110,7 +110,7 @@ mod tests {
 
     #[test]
     fn parse_definition() {
-        let mut lexer = Lexer::new();
+        let lexer = Lexer::new();
         let tokens = lexer.lex("(define a b)").unwrap();
         let parser = Parser::new();
 

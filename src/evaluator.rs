@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn eval_number() {
-        assert_eval2("486.0", Expr::Number(486.0));
+        assert_eval("486.0", Expr::Number(486.0));
     }
 
     #[test]
@@ -87,22 +87,22 @@ mod tests {
 
     #[test]
     fn eval_expressions() {
-        assert_eval(Expr::Expression(vec![Expr::Identifier("+".to_string()), Expr::Number(137.0), Expr::Number(349.0)]), Expr::Number(486.0));
-        assert_eval(Expr::Expression(vec![Expr::Identifier("-".to_string()), Expr::Number(1000.0)]), Expr::Number(-1000.0));
-        assert_eval(Expr::Expression(vec![Expr::Identifier("-".to_string()), Expr::Number(1000.0), Expr::Number(334.0)]), Expr::Number(666.0));
-        assert_eval(Expr::Expression(vec![Expr::Identifier("*".to_string()), Expr::Number(5.0), Expr::Number(99.0)]), Expr::Number(495.0));
-        assert_eval(Expr::Expression(vec![Expr::Identifier("/".to_string()), Expr::Number(10.0), Expr::Number(5.0)]), Expr::Number(2.0));
-        assert_eval(Expr::Expression(vec![Expr::Identifier("+".to_string()), Expr::Number(2.7), Expr::Number(10.0)]), Expr::Number(12.7));
-        assert_eval(Expr::Expression(vec![Expr::Identifier("+".to_string()), Expr::Expression(vec![Expr::Identifier("+".to_string()), Expr::Number(1.0)])]), Expr::Number(1.0));
+        assert_eval("(+ 137 349)", Expr::Number(486.0));
+        assert_eval("(- 1000)", Expr::Number(-1000.0));
+        assert_eval("(- 1000 334)", Expr::Number(666.0));
+        assert_eval("(* 5 99)", Expr::Number(495.0));
+        assert_eval("(/ 10 5)", Expr::Number(2.0));
+        assert_eval("(+ 2.7 10)", Expr::Number(12.7));
+        assert_eval("(+ 1)", Expr::Number(1.0));
     }
 
     #[test]
     fn eval_booleans() {
-        assert_eval(Expr::Expression(vec![Expr::Identifier("=".to_string()), Expr::Number(1.0), Expr::Number(2.0)]), Expr::Bool(false));
-        assert_eval(Expr::Expression(vec![Expr::Identifier("<".to_string()), Expr::Number(1.0), Expr::Number(2.0)]), Expr::Bool(true));
-        assert_eval(Expr::Expression(vec![Expr::Identifier(">".to_string()), Expr::Number(1.0), Expr::Number(2.0)]), Expr::Bool(false));
-        assert_eval(Expr::Expression(vec![Expr::Identifier("<=".to_string()), Expr::Number(1.0), Expr::Number(2.0)]), Expr::Bool(true));
-        assert_eval(Expr::Expression(vec![Expr::Identifier(">=".to_string()), Expr::Number(1.0), Expr::Number(2.0)]), Expr::Bool(false));
+        assert_eval("(= 1 2)", Expr::Bool(false));
+        assert_eval("(< 1 2)", Expr::Bool(true));
+        assert_eval("(> 1 2)", Expr::Bool(false));
+        assert_eval("(<= 1 2)", Expr::Bool(true));
+        assert_eval("(>= 1 2)", Expr::Bool(false));
     }
 
     #[test]
@@ -189,13 +189,7 @@ mod tests {
         assert_that!(definition.clone(), equal_to(expected_definition));
     }
 
-    fn assert_eval(expr: Expr, expected: Expr) {
-        let res = eval(expr);
-
-        assert_that!(res.unwrap(), equal_to(expected));
-    }
-
-    fn assert_eval2(expr: &str, expected: Expr) {
+    fn assert_eval(expr: &str, expected: Expr) {
         let res = eval2(expr);
 
         assert_that!(res, equal_to(expected));
@@ -215,8 +209,7 @@ mod tests {
     }
 
     fn eval2(source: &str) -> Expr {
-        println!("here");
-        let mut lexer = Lexer::new();
+        let lexer = Lexer::new();
         let parser = Parser::new();
         let evaluator = Evaluator::new();
         let mut globals = Environment::global();
@@ -225,13 +218,11 @@ mod tests {
             Ok(tokens) => tokens,
             Err(e) => panic!("Lexing error: {}.", e),
         };
-        println!("here1");
 
         let exprs = match parser.parse(tokens) {
             Ok(exprs) => exprs,
             Err(e) => panic!("Parsing error: {}.", e),
         };
-        println!("here2");
 
         let mut res = None;
         for expr in exprs {
@@ -240,7 +231,6 @@ mod tests {
                 Err(e) => panic!("Evaluating error: {}.", e)
             }
         }
-        println!("here3");
 
         match res {
             Some(result) => result,

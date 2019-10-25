@@ -27,7 +27,7 @@ fn main() {
 }
 
 fn run(source: &str, globals: &mut Environment) {
-    let mut lexer: Lexer = Lexer::new();
+    let lexer: Lexer = Lexer::new();
 
     let res = lexer.lex(source);
     let tokens;
@@ -57,12 +57,12 @@ fn run(source: &str, globals: &mut Environment) {
             return;
         }
     };
-
-    println!("{} expression{}:", &expressions.len(), if expressions.len() != 1 { "s" } else { "" });
-    for expr in &expressions {
-        println!("- {:?}", expr);
-    }
-    println!();
+//
+//    println!("{} expression{}:", &expressions.len(), if expressions.len() != 1 { "s" } else { "" });
+//    for expr in &expressions {
+//        println!("- {:?}", expr);
+//    }
+//    println!();
 
     let evaluator: Evaluator = Evaluator::new();
 

@@ -5,20 +5,21 @@ use crate::token::*;
 #[derive(Debug)]
 pub struct Lexer {
     //    tokens: Vec<Token>,
-    line: u32,
+//    line: u32,
 }
 
 impl Lexer {
     pub fn new() -> Lexer {
         Lexer {
 //            tokens: Vec::new(),
-            line: 1,
+//            line: 1,
         }
     }
 
-    pub fn lex(&mut self, source: &str) -> Result<Vec<Token>, String> {
+    pub fn lex(&self, source: &str) -> Result<Vec<Token>, String> {
         let mut it = source.chars().peekable();
         let mut tokens = Vec::new();
+        let mut line = 1;
 
         while let Some(&c) = it.peek() {
             let token_type = match c {
@@ -37,25 +38,31 @@ impl Lexer {
                     continue;
                 }
                 '\n' => {
-                    self.line += 1;
+                    line += 1;
                     it.next();
                     continue;
                 }
                 _ => {
-                    identifier(&mut it)
+                    if is_alphanum(peek(&mut it)) {
+                        identifier(&mut it)
+                    }
+                    else {
+                        return Err(format!("Invalid token: \"{}\"", advance(&mut it)));
+                    }
                 }
             };
 
-            tokens.push(self.build_token(token_type));
+            tokens.push(build_token(token_type, line));
         }
 
-        tokens.push(self.build_token(TokenType::EOF));
+        tokens.push(build_token(TokenType::EOF, line));
         Ok(tokens.clone())
     }
 
-    fn build_token(&self, token_type: TokenType) -> Token {
-        Token::new(token_type, self.line)
-    }
+}
+
+fn build_token(token_type: TokenType, line: u32) -> Token {
+    Token::new(token_type, line)
 }
 
 fn identifier<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> TokenType {
@@ -146,7 +153,7 @@ mod tests {
 
     #[test]
     fn lex_empty() {
-        let mut lexer = Lexer::new();
+        let lexer = Lexer::new();
         let tokens = lexer.lex("").unwrap();
 
         assert_that!(&tokens, len(1));
@@ -154,8 +161,17 @@ mod tests {
     }
 
     #[test]
+    fn lex_invalid() {
+        let lexer = Lexer::new();
+        match lexer.lex(",") {
+            Ok(t) => panic!("Unexpected valid tokens: {:?}", t),
+            Err(e) => assert_that!(&e, equal_to("Invalid token: \",\""))
+        }
+    }
+
+    #[test]
     fn lex_booleans() {
-        let mut lexer = Lexer::new();
+        let lexer = Lexer::new();
         let tokens = lexer.lex("true false").unwrap();
 
         assert_that!(&tokens, len(3));
@@ -166,7 +182,7 @@ mod tests {
 
     #[test]
     fn lex_keywords() {
-        let mut lexer = Lexer::new();
+        let lexer = Lexer::new();
         let tokens = lexer.lex("define").unwrap();
 
         assert_that!(&tokens, len(2));
@@ -176,7 +192,7 @@ mod tests {
 
     #[test]
     fn lex_numbers() {
-        let mut lexer = Lexer::new();
+        let lexer = Lexer::new();
         let tokens = lexer.lex("123 4.56\n").unwrap();
 
         assert_that!(&tokens, len(3));
@@ -187,7 +203,7 @@ mod tests {
 
     #[test]
     fn lex_symbols() {
-        let mut lexer = Lexer::new();
+        let lexer = Lexer::new();
         let tokens = lexer.lex("+ - * /").unwrap();
 
         assert_that!(&tokens, len(5));
@@ -200,7 +216,7 @@ mod tests {
 
     #[test]
     fn lex_paren() {
-        let mut lexer = Lexer::new();
+        let lexer = Lexer::new();
         let tokens = lexer.lex("()").unwrap();
 
         assert_that!(&tokens, len(3));
