@@ -38,7 +38,7 @@ impl Parser {
             TokenType::Identifier(s) => Ok(Expr::Identifier(s.clone())),
             TokenType::Define => self.definition(it),
             TokenType::Paren('(') => self.expression(it),
-            t => Err(format!("Undefined token type: {:?}", t))
+            t => Err(format!("Undefined token type: {}", t))
         }
     }
 
@@ -61,6 +61,10 @@ impl Parser {
         let expr = match &token.token_type {
             TokenType::Number(n) => Expr::Number(*n),
             TokenType::Identifier(s) => Expr::Identifier(s.clone()),
+            TokenType::Paren('(') => match self.expression(it) {
+                Ok(expr) => expr,
+                Err(e) => return Err(e),
+            },
             _ => return Err(format!("Expected valid expression after name."))
         };
 

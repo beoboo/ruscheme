@@ -202,16 +202,17 @@ mod tests {
     }
 
     #[test]
-    fn lex_symbols() {
+    fn lex_identifiers() {
         let lexer = Lexer::new();
-        let tokens = lexer.lex("+ - * /").unwrap();
+        let tokens = lexer.lex("+ - * / plus_one").unwrap();
 
-        assert_that!(&tokens, len(5));
+        assert_that!(&tokens, len(6));
         assert_token(&tokens[0], &TokenType::Identifier("+".to_string()), 1);
         assert_token(&tokens[1], &TokenType::Identifier("-".to_string()), 1);
         assert_token(&tokens[2], &TokenType::Identifier("*".to_string()), 1);
         assert_token(&tokens[3], &TokenType::Identifier("/".to_string()), 1);
-        assert_token(&tokens[4], &TokenType::EOF, 1);
+        assert_token(&tokens[4], &TokenType::Identifier("plus_one".to_string()), 1);
+        assert_token(&tokens[5], &TokenType::EOF, 1);
     }
 
     #[test]

@@ -2,13 +2,15 @@
 #[macro_use]
 extern crate hamcrest2;
 
-use std::{env, fs, io, io::Write};
+use std::{env, fs, io};
+use std::io::prelude::*;
 
+use colored::*;
+
+use crate::environment::Environment;
 use crate::evaluator::*;
 use crate::lexer::*;
 use crate::parser::*;
-use colored::*;
-use crate::environment::Environment;
 
 mod lexer;
 mod parser;
@@ -26,7 +28,41 @@ fn main() {
     }
 }
 
-fn run(source: &str, globals: &mut Environment) {
+fn repl() {
+    let mut globals = Environment::global();
+    let mut source = String::new();
+
+    loop {
+        print!("> ");
+        io::stdout().flush().unwrap();
+
+        let mut line = String::new();
+
+        if io::stdin().read_line(&mut line).is_ok() {
+            source += line.as_str();
+            match run(&source, &mut globals) {
+                Err(e) => {
+//                    eprintln!("{}", format!("{}", e).red())
+                }
+                _ => source = String::new(),
+            };
+        }
+    }
+}
+
+fn run_file(filename: &String) {
+    let mut globals = Environment::global();
+
+    let source: String = fs::read_to_string(filename)
+        .expect(format!("Cannot read {}", filename).as_str());
+
+    match run(&source, &mut globals) {
+        Err(e) => eprintln!("{}", format!("{}", e).red()),
+        _ => (),
+    };
+}
+
+fn run(source: &str, globals: &mut Environment) -> Result<(), String> {
     let lexer: Lexer = Lexer::new();
 
     let res = lexer.lex(source);
@@ -35,8 +71,7 @@ fn run(source: &str, globals: &mut Environment) {
     match res {
         Ok(t) => tokens = t,
         Err(e) => {
-            eprintln!("{}", format!("Lexing error: {}", e).red());
-            return;
+            return Err(format!("Lexing error: {}", e));
         }
     };
 
@@ -53,8 +88,7 @@ fn run(source: &str, globals: &mut Environment) {
     match res {
         Ok(exprs) => expressions = exprs,
         Err(e) => {
-            eprintln!("{}", format!("Parsing error: {}", e).red());
-            return;
+            return Err(format!("Parsing error: {}", e));
         }
     };
 //
@@ -69,31 +103,9 @@ fn run(source: &str, globals: &mut Environment) {
     for expr in expressions {
         match evaluator.evaluate(&expr, globals) {
             Ok(res) => println!("{}", res.to_string().green()),
-            Err(e) => eprintln!("{}", format!("Evaluating error: {}", e).red())
+            Err(e) => return Err(format!("Evaluating error: {}", e))
         }
     }
-}
 
-fn repl() {
-    let mut globals = Environment::global();
-
-    loop {
-        print!("> ");
-        io::stdout().flush().unwrap();
-
-        let mut line = String::new();
-
-        if io::stdin().read_line(&mut line).is_ok() {
-            run(&line, &mut globals);
-        };
-    }
-}
-
-fn run_file(filename: &String) {
-    let mut globals = Environment::global();
-
-    let contents: String = fs::read_to_string(filename)
-        .expect(format!("Cannot read {}", filename).as_str());
-
-    run(&contents, &mut globals);
+    Ok(())
 }

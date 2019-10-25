@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn eval_number() {
-        assert_eval("486.0", Expr::Number(486.0));
+        assert_eval("486", Expr::Number(486.0));
     }
 
     #[test]
@@ -94,6 +94,7 @@ mod tests {
         assert_eval("(/ 10 5)", Expr::Number(2.0));
         assert_eval("(+ 2.7 10)", Expr::Number(12.7));
         assert_eval("(+ 1)", Expr::Number(1.0));
+        assert_eval("(+1)", Expr::Number(1.0));
     }
 
     #[test]
@@ -117,71 +118,31 @@ mod tests {
     }
 
     #[test]
-    fn eval_definitions() {
-        assert_definition(Expr::Expression(vec![
-            Expr::Definition("a2".to_string(), Box::new(
-                Expr::Number(2.0)
-            ))]),
+    fn definitions() {
+        assert_definition("(define a2 2)",
                           Expr::Identifier("a2".to_string()),
                           Expr::Number(2.0),
         );
 
-        assert_definition(Expr::Expression(vec![
-            Expr::Definition("+1".to_string(), Box::new(
-                Expr::Expression(vec![Expr::Identifier("+".to_string()), Expr::Number(1.0)])
-            ))]),
-                          Expr::Identifier("+1".to_string()),
+        assert_definition("(define plus_one (+ 1))",
+                          Expr::Identifier("plus_one".to_string()),
                           Expr::Expression(vec![Expr::Identifier("+".to_string()), Expr::Number(1.0)]),
         );
     }
 
     #[test]
-    fn eval_multiple_definitions() {
-        let exprs = vec![
-            Expr::Expression(vec![Expr::Definition("a".to_string(), Box::new(
-                Expr::Number(1.0)
-            ))]),
-            Expr::Expression(vec![Expr::Definition("b".to_string(), Box::new(
-                Expr::Identifier("a".to_string())
-            ))]),
-            Expr::Identifier("b".to_string())
-        ];
-
-        assert_expressions(exprs, Expr::Number(1.0));
-//
-//        let exprs = vec![
-//            Expr::Expression(vec![Expr::Definition("a".to_string(), Box::new(
-//                Expr::Number(1.0)
-//            ))]),
-//            Expr::Expression(vec![Expr::Definition("b".to_string(), Box::new(
-//                Expr::Expression(vec![Expr::Identifier("a".to_string())
-//            ))]),
-//            Expr::Identifier("b".to_string())
-//        ];
-//
-//        assert_expressions(exprs, Expr::Number(1.0));
+    fn eval_definitions() {
+        assert_eval("\
+                    (define a (+ 1))\
+                    (define b a)\
+                    b",
+                    Expr::Number(1.0)
+        );
     }
 
-    fn assert_expressions(exprs: Vec<Expr>, expected: Expr) {
-        let evaluator = Evaluator::new();
+    fn assert_definition(expr: &str, expected_name: Expr, expected_definition: Expr) {
         let mut globals = Environment::global();
-
-        let mut res = None;
-        for expr in exprs {
-            res = Some(evaluator.evaluate(&expr, &mut globals).unwrap());
-        }
-
-        match res {
-            Some(res) => assert_that!(res, equal_to(expected)),
-            _ => panic!("Invalid expression")
-        };
-    }
-
-    fn assert_definition(expr: Expr, expected_name: Expr, expected_definition: Expr) {
-        let evaluator = Evaluator::new();
-        let mut globals = Environment::global();
-
-        let res = evaluator.evaluate(&expr, &mut globals);
+        let res = eval(&expr, &mut globals);
 
         assert_that!(&res.unwrap(), equal_to(&expected_name));
 
