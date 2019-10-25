@@ -64,11 +64,11 @@ fn run(source: &str) {
     }
     println!();
 
-    let globals = Environment::global();
-    let evaluator: Evaluator = Evaluator::new(globals);
+    let mut globals = Environment::global();
+    let evaluator: Evaluator = Evaluator::new();
 
     for expr in expressions {
-        match evaluator.evaluate(&expr) {
+        match evaluator.evaluate(&expr, &mut globals) {
             Ok(res) => println!("{}", res.to_string().green()),
             Err(e) => eprintln!("{}", format!("Evaluating error: {}", e).red())
         }

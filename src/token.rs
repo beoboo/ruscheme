@@ -3,7 +3,8 @@ pub enum TokenType {
     Bool(bool),
     Number(f64),
     Paren(char),
-    Symbol(String),
+    Identifier(String),
+    Define,
     EOF,
 }
 

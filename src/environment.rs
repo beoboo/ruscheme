@@ -44,7 +44,7 @@ impl Environment {
 
     pub fn global() -> Environment {
         let mut environment = Environment::new();
-        environment.define("+", Expr::Func(|args: Vec<Expr>| -> Result<Expr, String> {
+        environment.define_func("+", |args: Vec<Expr>| -> Result<Expr, String> {
             if args.len() == 0 {
                 return Err(format!("At least 1 argument required."));
             }
@@ -53,9 +53,9 @@ impl Environment {
                 Ok(nums) => Ok(Expr::Number(nums.iter().sum())),
                 Err(e) => Err(e)
             }
-        }));
+        });
 
-        environment.define("-", Expr::Func(|args: Vec<Expr>| -> Result<Expr, String> {
+        environment.define_func("-", |args: Vec<Expr>| -> Result<Expr, String> {
             if args.len() == 0 {
                 return Err(format!("At least 1 argument required."));
             }
@@ -75,9 +75,9 @@ impl Environment {
             let res = rest.iter().fold(first, |sum, a| sum - *a);
 
             Ok(Expr::Number(res))
-        }));
+        });
 
-        environment.define("*", Expr::Func(|args: Vec<Expr>| -> Result<Expr, String> {
+        environment.define_func("*", |args: Vec<Expr>| -> Result<Expr, String> {
             if args.len() == 0 {
                 return Err(format!("At least 1 argument required."));
             }
@@ -86,9 +86,9 @@ impl Environment {
                 Ok(nums) => Ok(Expr::Number(nums.iter().fold(1.0, |sum, a| sum * *a))),
                 Err(e) => Err(e)
             }
-        }));
+        });
 
-        environment.define("/", Expr::Func(|args: Vec<Expr>| -> Result<Expr, String> {
+        environment.define_func("/", |args: Vec<Expr>| -> Result<Expr, String> {
             if args.len() < 2 {
                 return Err(format!("At least 2 arguments required."));
             }
@@ -104,15 +104,19 @@ impl Environment {
             let res = rest.iter().fold(first, |sum, a| sum / *a);
 
             Ok(Expr::Number(res))
-        }));
+        });
 
-        environment.define("=", Expr::Func(compare_floats!(|a, b| a == b)));
-        environment.define("<", Expr::Func(compare_floats!(|a, b| a < b)));
-        environment.define(">", Expr::Func(compare_floats!(|a, b| a > b)));
-        environment.define("<=", Expr::Func(compare_floats!(|a, b| a <= b)));
-        environment.define(">=", Expr::Func(compare_floats!(|a, b| a >= b)));
+        environment.define_func("=", compare_floats!(|a, b| a == b));
+        environment.define_func("<", compare_floats!(|a, b| a < b));
+        environment.define_func(">", compare_floats!(|a, b| a > b));
+        environment.define_func("<=", compare_floats!(|a, b| a <= b));
+        environment.define_func(">=", compare_floats!(|a, b| a >= b));
 
         environment
+    }
+
+    pub fn define_func(&mut self, name: &str, func: fn(args: Vec<Expr>) -> Result<Expr, String>) {
+        self.define(name, Expr::Func(name.to_string(), func));
     }
 
     pub fn define(&mut self, key: &str, expr: Expr) {
@@ -167,9 +171,9 @@ mod tests {
     }
 
     #[test]
-    fn define_symbol() {
+    fn define_identifier() {
         let mut environment = Environment::new();
-        let expr = Expr::Symbol("abc".to_string());
+        let expr = Expr::Identifier("abc".to_string());
         let expected = expr.clone();
         environment.define("a", expr);
 

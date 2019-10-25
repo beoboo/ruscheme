@@ -35,10 +35,35 @@ impl Parser {
         match &token.token_type {
             TokenType::Bool(b) => Ok(Expr::Bool(*b)),
             TokenType::Number(n) => Ok(Expr::Number(*n)),
-            TokenType::Symbol(s) => Ok(Expr::Symbol(s.clone())),
+            TokenType::Identifier(s) => Ok(Expr::Identifier(s.clone())),
+            TokenType::Define => self.definition(it),
             TokenType::Paren('(') => self.expression(it),
             t => Err(format!("Undefined token type: {:?}", t))
         }
+    }
+
+    fn definition(&self, it: &mut Iter<Token>) -> Result<Expr, String> {
+        let token = match it.next() {
+            Some(token) => token,
+            None => return Err(format!("Expected name after define."))
+        };
+
+        let name = match &token.token_type {
+            TokenType::Identifier(s) => s.to_string(),
+            _ => return Err(format!("Expected name after define."))
+        };
+
+        let token = match it.next() {
+            Some(token) => token,
+            None => return Err(format!("Expected expression after name."))
+        };
+
+        let expr = match &token.token_type {
+            TokenType::Number(n) => Expr::Number(*n),
+            _ => return Err(format!("Expected valid expression after name."))
+        };
+
+        Ok(Expr::Definition(name, Box::new(expr)))
     }
 
     fn expression(&self, it: &mut Iter<Token>) -> Result<Expr, String> {
@@ -52,7 +77,7 @@ impl Parser {
                         Ok(expr) => list.push(expr),
                         Err(e) => return Err(e)
                     }
-                },
+                }
             };
         }
 
@@ -85,13 +110,13 @@ mod tests {
     fn parse_operation() {
         let parser = Parser::new();
         let tokens = vec![
-            Token::new(TokenType::Symbol("+".to_string()), 0),
+            Token::new(TokenType::Identifier("+".to_string()), 0),
             Token::new(TokenType::Number(123.0), 0),
             Token::new(TokenType::Number(456.0), 0),
             Token::new(TokenType::EOF, 0)];
         let exprs = parser.parse(tokens).unwrap();
 
         assert_that!(&exprs, len(3));
-        assert_that!(exprs, equal_to(vec![Expr::Symbol("+".to_string()), Expr::Number(123.0), Expr::Number(456.0)]));
+        assert_that!(exprs, equal_to(vec![Expr::Identifier("+".to_string()), Expr::Number(123.0), Expr::Number(456.0)]));
     }
 }

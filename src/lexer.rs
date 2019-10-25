@@ -71,7 +71,8 @@ impl Lexer {
         let token_type = match id.as_ref() {
             "true" => TokenType::Bool(true),
             "false" => TokenType::Bool(false),
-            _ => TokenType::Symbol(id)
+            "define" => TokenType::Define,
+            _ => TokenType::Identifier(id)
         };
 
         self.add_token(token_type);
@@ -113,7 +114,7 @@ impl Lexer {
             _ => {}
         }
 
-        self.add_token(TokenType::Symbol(op));
+        self.add_token(TokenType::Identifier(op));
     }
 
     fn add_token(&mut self, token_type: TokenType) {
@@ -149,6 +150,16 @@ mod tests {
     }
 
     #[test]
+    fn lex_keywords() {
+        let mut lexer = Lexer::new();
+        let tokens = lexer.lex("define").unwrap();
+
+        assert_that!(&tokens, len(2));
+        assert_token(&tokens[0], &TokenType::Define, 1);
+        assert_token(&tokens[1], &TokenType::EOF, 1);
+    }
+
+    #[test]
     fn lex_numbers() {
         let mut lexer = Lexer::new();
         let tokens = lexer.lex("123 4.56\n").unwrap();
@@ -165,10 +176,10 @@ mod tests {
         let tokens = lexer.lex("+ - * /").unwrap();
 
         assert_that!(&tokens, len(5));
-        assert_token(&tokens[0], &TokenType::Symbol("+".to_string()), 1);
-        assert_token(&tokens[1], &TokenType::Symbol("-".to_string()), 1);
-        assert_token(&tokens[2], &TokenType::Symbol("*".to_string()), 1);
-        assert_token(&tokens[3], &TokenType::Symbol("/".to_string()), 1);
+        assert_token(&tokens[0], &TokenType::Identifier("+".to_string()), 1);
+        assert_token(&tokens[1], &TokenType::Identifier("-".to_string()), 1);
+        assert_token(&tokens[2], &TokenType::Identifier("*".to_string()), 1);
+        assert_token(&tokens[3], &TokenType::Identifier("/".to_string()), 1);
         assert_token(&tokens[4], &TokenType::EOF, 1);
     }
 
