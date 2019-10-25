@@ -1,124 +1,139 @@
 use std::iter::Peekable;
+
 use crate::token::*;
 
 #[derive(Debug)]
 pub struct Lexer {
-    tokens: Vec<Token>,
+    //    tokens: Vec<Token>,
     line: u32,
 }
 
 impl Lexer {
     pub fn new() -> Lexer {
         Lexer {
-            tokens: Vec::new(),
+//            tokens: Vec::new(),
             line: 1,
         }
     }
 
     pub fn lex(&mut self, source: &str) -> Result<Vec<Token>, String> {
         let mut it = source.chars().peekable();
+        let mut tokens = Vec::new();
 
         while let Some(&c) = it.peek() {
-            match c {
+            let token_type = match c {
                 '0'..='9' => {
-                    self.number(&mut it);
+                    number(&mut it)
                 }
                 '+' | '-' | '*' | '/' | '=' | '<' | '>' => {
-                    self.symbol(&mut it);
+                    symbol(&mut it)
                 }
                 '(' | ')' => {
                     it.next();
-                    self.add_token(TokenType::Paren(c));
+                    TokenType::Paren(c)
                 }
                 ' ' | '\t' => {
                     it.next();
+                    continue;
                 }
                 '\n' => {
                     self.line += 1;
                     it.next();
+                    continue;
                 }
                 _ => {
-                    self.identifier(&mut it);
+                    identifier(&mut it)
                 }
+            };
+
+            tokens.push(self.build_token(token_type));
+        }
+
+        tokens.push(self.build_token(TokenType::EOF));
+        Ok(tokens.clone())
+    }
+
+    fn build_token(&self, token_type: TokenType) -> Token {
+        Token::new(token_type, self.line)
+    }
+}
+
+fn identifier<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> TokenType {
+    let mut id = String::new();
+
+    while is_alphanum(peek(it)) {
+        id.push(advance(it));
+    }
+
+    match id.as_ref() {
+        "true" => TokenType::Bool(true),
+        "false" => TokenType::Bool(false),
+        "define" => TokenType::Define,
+        _ => TokenType::Identifier(id)
+    }
+}
+
+fn number<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> TokenType {
+    let mut number = String::new();
+
+    while is_digit(peek(it)) {
+        number.push(advance(it));
+    }
+
+    if it.peek() == Some(&'.') {
+        number.push(advance(it)); // Consume '.'
+
+        while is_digit(peek(it)) {
+            number.push(advance(it));
+        }
+    }
+
+    let number = number.parse::<f64>().unwrap();
+
+    TokenType::Number(number)
+}
+
+fn symbol<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> TokenType {
+    let c = advance(it);
+    let mut op = c.to_string();
+
+    match c {
+        '>' | '<' => {
+            if peek(it) == '=' {
+                op.push(advance(it));
             }
         }
-
-        self.add_token(TokenType::EOF);
-        Ok(self.tokens.clone())
+        _ => {}
     }
 
-    fn is_digit(&self, ch: &char) -> bool {
-        match ch {
-            '0'..='9' => true,
-            _ => false
-        }
+    TokenType::Identifier(op)
+}
+
+fn is_digit(ch: char) -> bool {
+    match ch {
+        '0'..='9' => true,
+        _ => false
     }
+}
 
-    fn is_alphanum(&self, ch: &char) -> bool {
-        match ch {
-            '0'..='9' | 'a'..='z' | 'A'..= 'Z' | '?' | '_' | '$' => true,
-            _ => false
-        }
+fn is_alphanum(ch: char) -> bool {
+    match ch {
+        '0'..='9' | 'a'..='z' | 'A'..='Z' | '?' | '_' | '$' => true,
+        _ => false
     }
+}
 
-    fn identifier<T: Iterator<Item=char>>(&mut self, it: &mut Peekable<T>) {
-        let mut id = String::new();
-
-        while it.peek().is_some() && self.is_alphanum(it.peek().unwrap()) {
-            id.push(it.next().unwrap());
-        }
-
-        let token_type = match id.as_ref() {
-            "true" => TokenType::Bool(true),
-            "false" => TokenType::Bool(false),
-            "define" => TokenType::Define,
-            _ => TokenType::Identifier(id)
-        };
-
-        self.add_token(token_type);
+fn peek<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> char {
+    match it.peek() {
+        Some(t) => *t,
+        None => '\0'
     }
+}
 
-    fn number<T: Iterator<Item=char>>(&mut self, it: &mut Peekable<T>) {
-        let mut number = String::new();
-
-        while self.is_digit(it.peek().unwrap()) {
-            number.push(it.next().unwrap());
-        }
-
-        if it.peek() == Some(&'.') {
-            number.push(it.next().unwrap()); // Consume '.'
-
-            while self.is_digit(it.peek().unwrap()) {
-                number.push(it.next().unwrap());
-            }
-        }
-
-        let number = number.parse::<f64>().unwrap();
-
-        self.add_token(TokenType::Number(number));
-    }
-
-    fn symbol<T: Iterator<Item=char>>(&mut self, it: &mut Peekable<T>) {
-        let c = it.next().unwrap();
-        let mut op = c.to_string();
-
-        match c {
-            '>' | '<' => {
-                if let Some(&c1) = it.peek() {
-                    if c1 == '=' {
-                        it.next();
-                        op.push(c1);
-                    }
-                }
-            }
-            _ => {}
-        }
-
-        self.add_token(TokenType::Identifier(op));
-    }
-
-    fn add_token(&mut self, token_type: TokenType) {
-        self.tokens.push(Token::new(token_type, self.line));
+fn advance<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> char {
+    match it.next() {
+        Some(t) => t,
+        None => '\0'
     }
 }
 

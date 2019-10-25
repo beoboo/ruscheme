@@ -16,7 +16,7 @@ impl Evaluator {
                 let res = env.get(s);
 
                 match res {
-                    Ok(expr) => Ok(expr.clone()),
+                    Ok(expr) => self.evaluate(&expr.clone(), env),
                     _ => Err(format!("Undefined identifier: \"{}\".", s))
                 }
             }
@@ -70,11 +70,14 @@ impl Evaluator {
 mod tests {
     use hamcrest2::prelude::*;
 
+    use crate::lexer::Lexer;
+    use crate::parser::Parser;
+
     use super::*;
 
     #[test]
     fn eval_number() {
-        assert_eval(Expr::Number(486.0), Expr::Number(486.0));
+        assert_eval2("486.0", Expr::Number(486.0));
     }
 
     #[test]
@@ -104,7 +107,63 @@ mod tests {
 
     #[test]
     fn eval_definitions() {
-        assert_definition(Expr::Expression(vec![Expr::Definition("a".to_string(), Box::new(Expr::Number(2.0)))]), Expr::Identifier("a".to_string()));
+        assert_definition(Expr::Expression(vec![
+            Expr::Definition("a2".to_string(), Box::new(
+                Expr::Number(2.0)
+            ))]),
+                          Expr::Identifier("a2".to_string()),
+                          Expr::Number(2.0),
+        );
+
+        assert_definition(Expr::Expression(vec![
+            Expr::Definition("+1".to_string(), Box::new(
+                Expr::Expression(vec![Expr::Identifier("+".to_string()), Expr::Number(1.0)])
+            ))]),
+                          Expr::Identifier("+1".to_string()),
+                          Expr::Expression(vec![Expr::Identifier("+".to_string()), Expr::Number(1.0)]),
+        );
+    }
+
+    #[test]
+    fn eval_multiple_definitions() {
+        let exprs = vec![
+            Expr::Expression(vec![Expr::Definition("a".to_string(), Box::new(
+                Expr::Number(1.0)
+            ))]),
+            Expr::Expression(vec![Expr::Definition("b".to_string(), Box::new(
+                Expr::Identifier("a".to_string())
+            ))]),
+            Expr::Identifier("b".to_string())
+        ];
+
+        assert_expressions(exprs, Expr::Number(1.0));
+//
+//        let exprs = vec![
+//            Expr::Expression(vec![Expr::Definition("a".to_string(), Box::new(
+//                Expr::Number(1.0)
+//            ))]),
+//            Expr::Expression(vec![Expr::Definition("b".to_string(), Box::new(
+//                Expr::Expression(vec![Expr::Identifier("a".to_string())
+//            ))]),
+//            Expr::Identifier("b".to_string())
+//        ];
+//
+//        assert_expressions(exprs, Expr::Number(1.0));
+    }
+
+    fn assert_expressions(exprs: Vec<Expr>, expected: Expr) {
+        let evaluator = Evaluator::new();
+        let mut globals = Environment::global();
+
+        let mut res = None;
+        for expr in exprs {
+            res = Some(evaluator.evaluate(&expr, &mut globals).unwrap());
+        }
+
+        match res {
+            Some(res) => assert_that!(res, equal_to(expected)),
+            _ => panic!("Invalid expression")
+        };
     }
 
     #[test]
@@ -118,22 +177,28 @@ mod tests {
         assert_invalid(Expr::Expression(vec![Expr::Identifier("/".to_string())]), "At least 2 arguments required.".to_string());
     }
 
-    fn assert_definition(expr: Expr, expected: Expr) {
+    fn assert_definition(expr: Expr, expected_name: Expr, expected_definition: Expr) {
         let evaluator = Evaluator::new();
         let mut globals = Environment::global();
 
         let res = evaluator.evaluate(&expr, &mut globals);
 
-        assert_that!(&res.unwrap(), equal_to(&expected));
+        assert_that!(&res.unwrap(), equal_to(&expected_name));
 
-        let definition = globals.get(&expected.to_string()).unwrap();
-        assert_that!(definition.clone(), equal_to(Expr::Number(2.0)));
+        let definition = globals.get(&expected_name.to_string()).unwrap();
+        assert_that!(definition.clone(), equal_to(expected_definition));
     }
 
     fn assert_eval(expr: Expr, expected: Expr) {
         let res = eval(expr);
 
         assert_that!(res.unwrap(), equal_to(expected));
+    }
+
+    fn assert_eval2(expr: &str, expected: Expr) {
+        let res = eval2(expr);
+
+        assert_that!(res, equal_to(expected));
     }
 
     fn assert_invalid(expr: Expr, err: String) {
@@ -147,5 +212,39 @@ mod tests {
         let mut globals = Environment::global();
 
         evaluator.evaluate(&expr, &mut globals)
+    }
+
+    fn eval2(source: &str) -> Expr {
+        println!("here");
+        let mut lexer = Lexer::new();
+        let parser = Parser::new();
+        let evaluator = Evaluator::new();
+        let mut globals = Environment::global();
+
+        let tokens = match lexer.lex(source) {
+            Ok(tokens) => tokens,
+            Err(e) => panic!("Lexing error: {}.", e),
+        };
+        println!("here1");
+
+        let exprs = match parser.parse(tokens) {
+            Ok(exprs) => exprs,
+            Err(e) => panic!("Parsing error: {}.", e),
+        };
+        println!("here2");
+
+        let mut res = None;
+        for expr in exprs {
+            res = match evaluator.evaluate(&expr, &mut globals) {
+                Ok(expr) => Some(expr),
+                Err(e) => panic!("Evaluating error: {}.", e)
+            }
+        }
+        println!("here3");
+
+        match res {
+            Some(result) => result,
+            None => panic!("No expressions to evaluate.")
+        }
     }
 }

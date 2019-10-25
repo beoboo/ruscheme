@@ -60,6 +60,7 @@ impl Parser {
 
         let expr = match &token.token_type {
             TokenType::Number(n) => Expr::Number(*n),
+            TokenType::Identifier(s) => Expr::Identifier(s.clone()),
             _ => return Err(format!("Expected valid expression after name."))
         };
 
@@ -90,6 +91,7 @@ mod tests {
     use hamcrest2::prelude::*;
 
     use super::*;
+    use crate::lexer::Lexer;
 
     #[test]
     fn parse_empty() {
@@ -101,6 +103,17 @@ mod tests {
     fn parse_number() {
         let parser = Parser::new();
         let tokens = vec![Token::new(TokenType::Number(123.0), 0), Token::new(TokenType::EOF, 0)];
+        let exprs = parser.parse(tokens).unwrap();
+
+        assert_that!(&exprs, len(1));
+    }
+
+    #[test]
+    fn parse_definition() {
+        let mut lexer = Lexer::new();
+        let tokens = lexer.lex("(define a b)").unwrap();
+        let parser = Parser::new();
+
         let exprs = parser.parse(tokens).unwrap();
 
         assert_that!(&exprs, len(1));

@@ -36,7 +36,7 @@ impl fmt::Display for Expr {
 
                 write!(f, "({})", s)
             }
-            e => write!(f, "Undefined expression \"{:?}\"", e),
+//            e => write!(f, "Undefined expression \"{:?}\"", e),
         }
     }
 }

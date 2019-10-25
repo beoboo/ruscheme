@@ -26,7 +26,7 @@ fn main() {
     }
 }
 
-fn run(source: &str) {
+fn run(source: &str, globals: &mut Environment) {
     let mut lexer: Lexer = Lexer::new();
 
     let res = lexer.lex(source);
@@ -64,11 +64,10 @@ fn run(source: &str) {
     }
     println!();
 
-    let mut globals = Environment::global();
     let evaluator: Evaluator = Evaluator::new();
 
     for expr in expressions {
-        match evaluator.evaluate(&expr, &mut globals) {
+        match evaluator.evaluate(&expr, globals) {
             Ok(res) => println!("{}", res.to_string().green()),
             Err(e) => eprintln!("{}", format!("Evaluating error: {}", e).red())
         }
@@ -76,6 +75,8 @@ fn run(source: &str) {
 }
 
 fn repl() {
+    let mut globals = Environment::global();
+
     loop {
         print!("> ");
         io::stdout().flush().unwrap();
@@ -83,14 +84,16 @@ fn repl() {
         let mut line = String::new();
 
         if io::stdin().read_line(&mut line).is_ok() {
-            run(&line);
+            run(&line, &mut globals);
         };
     }
 }
 
 fn run_file(filename: &String) {
+    let mut globals = Environment::global();
+
     let contents: String = fs::read_to_string(filename)
         .expect(format!("Cannot read {}", filename).as_str());
 
-    run(&contents);
+    run(&contents, &mut globals);
 }
