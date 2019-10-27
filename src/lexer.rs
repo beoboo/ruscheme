@@ -76,6 +76,7 @@ fn identifier<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> TokenType {
         "true" => TokenType::Bool(true),
         "false" => TokenType::Bool(false),
         "define" => TokenType::Define,
+        "cond" => TokenType::Cond,
         _ => TokenType::Identifier(id)
     }
 }
@@ -183,11 +184,10 @@ mod tests {
     #[test]
     fn lex_keywords() {
         let lexer = Lexer::new();
-        let tokens = lexer.lex("define").unwrap();
+        let tokens = lexer.lex("define cond").unwrap();
 
-        assert_that!(&tokens, len(2));
         assert_token(&tokens[0], &TokenType::Define, 1);
-        assert_token(&tokens[1], &TokenType::EOF, 1);
+        assert_token(&tokens[1], &TokenType::Cond, 1);
     }
 
     #[test]

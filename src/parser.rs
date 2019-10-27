@@ -1,4 +1,6 @@
+use std::iter::Peekable;
 use std::slice::Iter;
+use log::debug;
 
 use crate::expr::*;
 use crate::token::*;
@@ -6,130 +8,257 @@ use crate::token::*;
 #[derive(Debug)]
 pub struct Parser {}
 
+type IterToken<'a> = Iter<'a, Token>;
+type PeekableToken<'a> = Peekable<IterToken<'a>>;
+
 impl Parser {
     pub fn new() -> Parser {
         Parser {}
     }
 
-    pub fn parse(&self, tokens: Vec<Token>) -> Result<Vec<Expr>, String> {
+    pub fn parse(&self, tokens: Vec<Token>) -> Result<Expr, String> {
         if tokens.len() == 0 {
             return Err(format!("No tokens available"));
         }
 
-        let mut it = tokens.iter();
+        let mut it = tokens.iter().peekable();
         let mut exprs = Vec::new();
 
-        while let Some(token) = it.next() {
-            if token.is(TokenType::EOF) {
+        loop {
+            let token_type = peek(&mut it);
+//            println!("Token: {}", token_type);
+            if token_type == TokenType::EOF {
                 break;
             }
 
-            match self.parse_token(token, &mut it) {
+            match self.expression(&mut it) {
                 Ok(expr) => exprs.push(expr),
                 Err(e) => return Err(e)
+            };
+        }
+
+        Ok(Expr::List(exprs))
+    }
+
+    fn expression(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, String> {
+        debug!("expression");
+        let token_type = match advance(it) {
+            Ok(t) => t,
+            Err(e) => return Err(e)
+        };
+
+        debug!("expression \"{}\"", token_type);
+        match token_type {
+            TokenType::Bool(b) => Ok(Expr::Bool(b)),
+            TokenType::Identifier(i) => Ok(Expr::Identifier(i)),
+            TokenType::Number(n) => Ok(Expr::Number(n)),
+
+            TokenType::Paren('(') => self.form(it),
+            t => Err(format!("Undefined token type: {}.", t))
+        }
+    }
+
+    fn form(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, String> {
+        debug!("form");
+        if peek(it) == TokenType::Paren(')') {
+            // Consume the ')'.
+            advance(it).unwrap();
+
+            return Ok(Expr::Empty);
+        }
+
+        let res = match advance(it) {
+            Ok(TokenType::Define) => self.definition(it),
+            Ok(TokenType::Cond) => self.condition(it),
+            Ok(TokenType::Identifier(i)) => self.function_call(i, it),
+            Ok(t) => Err(format!("Undefined token type: {}.", t)),
+            Err(e) => Err(e),
+        };
+
+        // Consume the ')'.
+        if advance(it).is_err() {
+            debug!("Consumung ')'");
+            return Err(format!("Expected ')' after form."));
+        }
+        res
+    }
+
+    fn condition(&self, it: &mut PeekableToken) -> Result<Expr, String> {
+        debug!("condition");
+        let mut predicates = Vec::new();
+
+        loop {
+            match peek(it) {
+                TokenType::Paren('(') => {
+                    // Consume the '('.
+                    advance(it).unwrap();
+
+                    match self.predicate(it) {
+                        Ok(predicate) => predicates.push(predicate),
+                        Err(e) => return Err(e)
+                    }
+                }
+                TokenType::Paren(')') => break,
+                t => return Err(format!("Undefined token type: {}", t))
+            };
+        }
+
+        debug!("Predicates {:?}", predicates);
+
+        Ok(Expr::Conditional(predicates))
+    }
+
+    fn function_call(&self, name: String, it: &mut PeekableToken) -> Result<Expr, String> {
+        debug!("function call: {}", name);
+        let args = match self.build_arguments(it) {
+            Ok(args) => args,
+            Err(e) => return Err(e)
+        };
+
+        Ok(Expr::Expression(name, args))
+    }
+
+    fn predicate(&self, it: &mut PeekableToken) -> Result<Expr, String> {
+        debug!("predicate");
+        let mut exprs = Vec::new();
+        let test = match self.expression(it) {
+            Ok(expr) => expr,
+            Err(e) => return Err(e),
+        };
+
+        loop {
+            match peek(it) {
+                TokenType::Paren(')') => break,
+                _ => match self.expression(it) {
+                    Ok(expr) => exprs.push(expr),
+                    Err(e) => return Err(e)
+                }
             }
         }
-        Ok(exprs)
+
+        // Consume the ')'.
+        if advance(it).is_err() {
+            return Err(format!("Expected ')' after predicate."));
+        }
+
+        Ok(Expr::Predicate(Box::new(test), exprs))
     }
 
-    fn parse_token(&self, token: &Token, it: &mut Iter<Token>) -> Result<Expr, String> {
-        match &token.token_type {
-            TokenType::Bool(b) => Ok(Expr::Bool(*b)),
-            TokenType::Number(n) => Ok(Expr::Number(*n)),
-            TokenType::Identifier(s) => Ok(Expr::Identifier(s.clone())),
-            TokenType::Define => self.definition(it),
-            TokenType::Paren('(') => self.expression(it),
-            t => Err(format!("Undefined token type: {}", t))
+    fn definition(&self, it: &mut PeekableToken) -> Result<Expr, String> {
+        debug!("definition");
+        match advance(it) {
+            Ok(TokenType::Identifier(i)) => self.define_expression(&i, it),
+            Ok(TokenType::Paren('(')) => self.define_procedure(it),
+            t => return Err(format!("Expected name or '(' after define (found: {:?}).", t))
         }
     }
 
-    fn definition(&self, it: &mut Iter<Token>) -> Result<Expr, String> {
-        let token = match it.next() {
-            Some(token) => token,
-            None => return Err(format!("Expected token."))
-        };
+    fn define_expression(&self, name: &str, it: &mut PeekableToken) -> Result<Expr, String> {
+        debug!("define expression: {}", name);
+        let expr = match advance(it) {
+            Ok(TokenType::Number(n)) => Expr::Number(n),
+            Ok(TokenType::Identifier(i)) => Expr::Identifier(i),
+            Ok(TokenType::Paren('(')) => {
+                let token_type = match advance(it) {
+                    Ok(t) => t,
+                    Err(e) => return Err(e),
+                };
 
-        match &token.token_type {
-            TokenType::Identifier(s) => self.define_symbol(s, it),
-            TokenType::Paren('(') => self.define_procedure(it),
-            _ => return Err(format!("Expected name or '(' after define."))
-        }
-    }
+                let expr = match token_type {
+                    TokenType::Identifier(i) => match self.function_call(i, it) {
+                        Ok(e) => e,
+                        Err(e) => return Err(e)
+                    }
+                    _ => return Err(format!("Expected expression name."))
+                };
 
-    fn define_symbol(&self, name: &str, it: &mut Iter<Token>) -> Result<Expr, String> {
-        let token = match it.next() {
-            Some(token) => token,
-            None => return Err(format!("Expected expression after name."))
-        };
+                // Consume the ')'.
+                if advance(it).is_err() {
+                    return Err(format!("Expected ')' after expression."));
+                }
 
-        let expr = match &token.token_type {
-            TokenType::Number(n) => Expr::Number(*n),
-            TokenType::Identifier(s) => Expr::Identifier(s.clone()),
-            TokenType::Paren('(') => match self.expression(it) {
-                Ok(expr) => expr,
-                Err(e) => return Err(e),
-            },
-            t => return Err(format!("Expected expression after name (found: {}).", t))
+                expr
+            }
+            _ => return Err(format!("Expected expression after name."))
         };
 
         Ok(Expr::Definition(name.to_string(), Box::new(expr)))
     }
 
-    fn define_procedure(&self, it: &mut Iter<Token>) -> Result<Expr, String> {
-        let token = match it.next() {
-            Some(token) => token,
-            None => return Err(format!("Expected procedure name."))
-        };
-
-        let name = match &token.token_type {
-            TokenType::Identifier(s) => Expr::Identifier(s.clone()),
+    fn define_procedure(&self, it: &mut PeekableToken) -> Result<Expr, String> {
+        let name = match advance(it) {
+            Ok(TokenType::Identifier(i)) => Expr::Identifier(i),
             _ => return Err(format!("Expected procedure name."))
         };
+        debug!("procedure \"{}\"", name);
 
         let params = match self.build_arguments(it) {
             Ok(list) => list,
             Err(e) => return Err(e)
         };
 
-        let token = match it.next() {
-            Some(token) => token,
-            None => return Err(format!("Expected procedure body1."))
-        };
+        // Consume the ')'.
+        if advance(it).is_err() {
+            return Err(format!("Expected ')' after procedure parameters."));
+        }
 
-        let expr = match self.parse_token(token, it) {
+//
+//        match peek(it) {
+//            Some(token) => token,
+//            None => return Err(format!("Expected procedure body."))
+//        };
+
+        let expr = match self.expression(it) {
             Ok(expr) => expr,
             Err(e) => return Err(e),
         };
+//
+//        // Consume the ')'.
+//        if advance(it).is_err() {
+//            return Err(format!("Expected ')' after procedure."));
+//        }
 
         let procedure = Expr::Procedure(name.to_string(), params, Box::new(expr));
 
         Ok(Expr::Definition(name.to_string(), Box::new(procedure)))
     }
 
-    fn expression(&self, it: &mut Iter<Token>) -> Result<Expr, String> {
-        match self.build_arguments(it) {
-            Ok(list) => Ok(Expr::Expression(list)),
-            Err(e) => Err(e)
-        }
-    }
+    fn build_arguments(&self, it: &mut PeekableToken) -> Result<Vec<Expr>, String> {
+        let mut args: Vec<Expr> = Vec::new();
 
-    fn build_arguments(&self, it: &mut Iter<Token>) -> Result<Vec<Expr>, String> {
-        let mut list: Vec<Expr> = Vec::new();
+        loop {
+            let token_type = peek(it);
 
-        while let Some(token) = it.next() {
-            match &token.token_type {
+            match token_type {
                 TokenType::Paren(')') => break,
-                _ => {
-                    match self.parse_token(token, it) {
-                        Ok(expr) => list.push(expr),
-                        Err(e) => return Err(e)
-                    }
+                _ => match self.expression(it) {
+                    Ok(expr) => args.push(expr),
+                    Err(e) => return Err(e)
                 }
-            };
+            }
         }
-        Ok(list)
+
+        Ok(args)
     }
 }
+
+fn advance(it: &mut PeekableToken) -> Result<TokenType, String> {
+    match it.next() {
+        Some(token) => {
+            debug!("Token: {}", token.token_type);
+            Ok(token.token_type.clone())
+        },
+        None => Err(format!("Token not found."))
+    }
+}
+
+fn peek(it: &mut PeekableToken) -> TokenType {
+    match it.peek() {
+        Some(token) => token.token_type.clone(),
+        None => TokenType::EOF,
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -142,40 +271,108 @@ mod tests {
     #[test]
     fn parse_empty() {
         let parser = Parser::new();
-        assert_that!(parser.parse(vec![]).is_err(), is(true));
+        assert_that!(parser.parse(vec ! []).is_err(), is(true));
     }
 
     #[test]
-    fn parse_number() {
-        let parser = Parser::new();
-        let tokens = vec![Token::new(TokenType::Number(123.0), 0), Token::new(TokenType::EOF, 0)];
-        let exprs = parser.parse(tokens).unwrap();
-
-        assert_that!(&exprs, len(1));
+    fn parse_invalid() {
+        assert_invalid("define", "Cannot execute \"1\".");
+        assert_invalid("(1)", "Cannot execute \"1\".");
     }
 
     #[test]
-    fn parse_definition() {
+    fn parse_primitives() {
+        assert_parse("123", Expr::List(vec![Expr::Number(123.0)]));
+        assert_parse("true", Expr::List(vec![Expr::Bool(true)]));
+        assert_parse("false", Expr::List(vec![Expr::Bool(false)]));
+        assert_parse("+", Expr::List(vec![Expr::Identifier("+".to_string())]));
+    }
+
+    #[test]
+    fn parse_empty_list() {
+        let expr = parse("()").unwrap();
+
+        assert_that!(expr, equal_to(Expr::List(vec ! [Expr::Empty])));
+    }
+
+    #[test]
+    fn parse_expressions() {
+        assert_parse("(one)", Expr::List(vec![Expr::Expression("one".to_string(), vec![])]));
+
+        assert_parse("(+ 1 2)", Expr::List(vec![Expr::Expression("+".to_string(), vec![
+            Expr::Number(1.0), Expr::Number(2.0)
+        ])]));
+    }
+
+    #[test]
+    fn parse_definitions() {
+//        assert_parse("(define a 1)", Expr::List(vec![Expr::Definition("a".to_string(), Box::new(Expr::Number(1.0)))]));
+//        assert_parse("(define a b)", Expr::List(vec![Expr::Definition("a".to_string(), Box::new(Expr::Identifier("b".to_string())))]));
+        assert_parse("(define a (+ 1))", Expr::List(vec![
+            Expr::Definition("a".to_string(), Box::new(Expr::Expression("+".to_string(), vec![
+                Expr::Number(1.0)
+            ])))]));
+        assert_parse("(define (one) 1)",
+                     Expr::List(vec![
+                         Expr::Definition(
+                             "one".to_string(),
+                             Box::new(Expr::Procedure(
+                                 "one".to_string(),
+                                 vec![],
+                                 Box::new(Expr::Number(1.0))
+                             ))
+                         )
+                     ])
+        );
+        assert_parse("(define (square x) (* x x))",
+                     Expr::List(vec![
+                         Expr::Definition(
+                             "square".to_string(),
+                             Box::new(Expr::Procedure(
+                                 "square".to_string(),
+                                 vec![Expr::Identifier("x".to_string())],
+                                 Box::new(Expr::Expression(
+                                     "*".to_string(),
+                                     vec![Expr::Identifier("x".to_string()), Expr::Identifier("x".to_string())]
+                                 ))
+                             ))
+                         )
+                     ])
+        );
+    }
+
+    #[test]
+    fn parse_conditions() {
+        parse("(cond (true 1))").unwrap();
+
+//        assert_that!(expr, equal_to(vec![Expr::Identifier("+".to_string()), Expr::Number(123.0), Expr::Number(456.0)]));
+    }
+
+    #[test]
+    fn parse_operations() {
+        let expr = parse("+ 123 456").unwrap();
+
+        assert_that!(expr, equal_to(Expr::List(vec![Expr::Identifier("+".to_string()), Expr::Number(123.0), Expr::Number(456.0)])));
+    }
+
+    fn parse(source: &str) -> Result<Expr, String> {
         let lexer = Lexer::new();
-        let tokens = lexer.lex("(define a b)").unwrap();
+        let tokens = lexer.lex(source).unwrap();
         let parser = Parser::new();
 
-        let exprs = parser.parse(tokens).unwrap();
-
-        assert_that!(&exprs, len(1));
+        parser.parse(tokens)
     }
 
-    #[test]
-    fn parse_operation() {
-        let parser = Parser::new();
-        let tokens = vec![
-            Token::new(TokenType::Identifier("+".to_string()), 0),
-            Token::new(TokenType::Number(123.0), 0),
-            Token::new(TokenType::Number(456.0), 0),
-            Token::new(TokenType::EOF, 0)];
-        let exprs = parser.parse(tokens).unwrap();
+    fn assert_invalid(source: &str, message: &str) {
+        let res = parse(source);
 
-        assert_that!(&exprs, len(3));
-        assert_that!(exprs, equal_to(vec![Expr::Identifier("+".to_string()), Expr::Number(123.0), Expr::Number(456.0)]));
+        assert!(res.is_err());
+        assert_that!(res.err().unwrap(), equal_to(message));
+    }
+
+    fn assert_parse(source: &str, expr: Expr) {
+        let res = parse(source);
+
+        assert_that!(res.unwrap(), equal_to(expr));
     }
 }

@@ -84,10 +84,9 @@ fn run(source: &str, globals: &mut Environment) -> Result<(), String> {
 
     let parser: Parser = Parser::new();
     let res = parser.parse(tokens);
-    let expressions;
 
-    match res {
-        Ok(exprs) => expressions = exprs,
+    let expr = match res {
+        Ok(expr) => expr,
         Err(e) => {
             return Err(format!("Parsing error: {}", e));
         }
@@ -101,11 +100,9 @@ fn run(source: &str, globals: &mut Environment) -> Result<(), String> {
 
     let evaluator: Evaluator = Evaluator::new();
 
-    for expr in expressions {
-        match evaluator.evaluate(&expr, globals) {
-            Ok(res) => println!("{}", res.to_string().green()),
-            Err(e) => return Err(format!("Evaluating error: {}", e))
-        }
+    match evaluator.evaluate(&expr, globals) {
+        Ok(res) => println!("{}", res.to_string().green()),
+        Err(e) => return Err(format!("Evaluating error: {}", e))
     }
 
     Ok(())

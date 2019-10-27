@@ -1,6 +1,7 @@
+use std::ops::Deref;
+
 use crate::environment::Environment;
 use crate::expr::Expr;
-use std::ops::Deref;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Evaluator {}
@@ -12,42 +13,73 @@ impl Evaluator {
 
     pub fn evaluate(&self, expr: &Expr, env: &mut Environment) -> Result<Expr, String> {
         match expr {
-            Expr::Empty => Ok(expr.clone()),
             Expr::Bool(_) => Ok(expr.clone()),
+            Expr::Conditional(predicates) => self.eval_cond(predicates, env),
+            Expr::Definition(name, expr) => self.eval_definition(name, expr, env),
+            Expr::Empty => Ok(expr.clone()),
+            Expr::Expression(name, args) => self.eval_function_call(name, args, env),
+            Expr::Identifier(s) => self.eval_identifier(s, env),
             Expr::Number(_) => Ok(expr.clone()),
-            Expr::Func(_, _) => Ok(expr.clone()),
-            Expr::Definition(_, _) => return Err(format!("\"define\" cannot be used outside expression.")),
-            Expr::Identifier(s) => {
-                let res = env.get(s);
-
-                match res {
-                    Ok(expr) => {
-                        self.evaluate(&expr.clone(), env)
-                    },
-                    _ => Err(format!("Undefined identifier: \"{}\".", s))
-                }
-            }
-            Expr::Expression(list) => {
-                if list.len() == 0 {
-                    return Ok(Expr::Empty);
-                }
-
-                let (form, args) = list.split_first().unwrap();
-                match form {
-                    Expr::Definition(name, expr) => {
-                        env.define(name, expr.as_ref().clone());
-                        Ok(Expr::Identifier(name.to_string()))
-                    }
-                    Expr::Identifier(s) => self.form(&s, args.to_vec(), env),
-                    _ => return Err(format!("Undefined form: \"{}\".", form))
-                }
-            }
+            Expr::List(list) => self.eval_list(list, env),
             e => panic!("Unmapped expression: {}", e)
         }
     }
 
-    fn form(&self, name: &str, args: Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
-        let res = env.get(name);
+    fn eval_cond(&self, predicates: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        for predicate in predicates {
+            match predicate {
+                Expr::Predicate(predicate, exprs) => {
+                    match self.evaluate(predicate, env) {
+                        Ok(Expr::Bool(true)) => return self.eval_list(exprs, env),
+                        _ => {}
+                    }
+                }
+                e => return Err(format!("Invalid predicate: {}", e))
+            }
+        }
+        Ok(Expr::Empty)
+    }
+
+    fn eval_definition(&self, name: &String, expr: &Box<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        env.define(name, expr.as_ref().clone());
+        Ok(Expr::Identifier(name.to_string()))
+    }
+//
+//    fn eval_expression(&self, name: String, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+//        let (form, args) = list.split_first().unwrap();
+//
+//        match form {
+//            Expr::Definition(name, expr) => ,
+//            Expr::Identifier(s) => self.eval_function_call(&s, args.to_vec(), env),
+//            _ => return Err(format!("Undefined form: \"{}\".", form))
+//        }
+//    }
+
+    fn eval_list(&self, exprs: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        let mut res = Expr::Empty;
+        for expr in exprs {
+            res = match self.evaluate(expr, env) {
+                Ok(expr) => expr,
+                Err(e) => return Err(e)
+            }
+        }
+
+        Ok(res)
+    }
+
+    fn eval_identifier(&self, s: &String, env: &mut Environment) -> Result<Expr, String> {
+        let res = env.get(s);
+
+        match res {
+            Ok(expr) => {
+                self.evaluate(&expr.clone(), env)
+            }
+            _ => Err(format!("Undefined identifier: \"{}\".", s))
+        }
+    }
+
+    fn eval_function_call(&self, name: &String, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        let res = env.get(name.as_str());
 
         let expr = match res {
             Ok(expr) => expr,
@@ -57,46 +89,50 @@ impl Evaluator {
         let expr = expr.clone();
 
         match expr {
-            Expr::Func(_, f) => {
-                let mut evaluated_args = Vec::new();
-                for arg in args {
-                    match self.evaluate(&arg, env) {
-                        Ok(e) => evaluated_args.push(e),
-                        Err(e) => return Err(e),
-                    }
-                }
-                f(evaluated_args)
-            }
-            Expr::Procedure(_, params, body) => {
-                let parent = env.clone();
-                let mut enclosing = Environment::new(Some(&parent));
-
-                if params.len() != args.len() {
-                    return Err(format!(
-                        "Wrong number of arguments (required: {}, given: {}).",
-                        params.len(),
-                        args.len()
-                    ));
-                }
-
-                for (i, arg) in args.iter().enumerate() {
-                    let param = match params.get(i) {
-                        Some(p) => p,
-                        None => return Err(format!("Wrong number of params"))
-                    };
-
-                    match self.evaluate(&arg, env) {
-                        Ok(e) => {
-                            enclosing.define(&param.to_string(), e)
-                        },
-                        Err(e) => return Err(e),
-                    }
-                }
-
-                self.evaluate(body.deref(), &mut enclosing)
-            }
+            Expr::Function(_, f) => self.eval_function(f, args, env),
+            Expr::Procedure(_, params, body) => self.eval_procedure(args, params, body, env),
             _ => Err(format!("Undefined procedure: \"{}\".", name))
         }
+    }
+
+    fn eval_procedure(&self, args: &Vec<Expr>, params: Vec<Expr>, body: Box<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        let parent = env.clone();
+        let mut enclosing = Environment::new(Some(&parent));
+
+        if params.len() != args.len() {
+            return Err(format!(
+                "Wrong number of arguments (required: {}, given: {}).",
+                params.len(),
+                args.len()
+            ));
+        }
+
+        for (i, arg) in args.iter().enumerate() {
+            let param = match params.get(i) {
+                Some(p) => p,
+                None => return Err(format!("Wrong number of params"))
+            };
+
+            match self.evaluate(&arg, env) {
+                Ok(e) => {
+                    enclosing.define(&param.to_string(), e)
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
+        self.evaluate(body.deref(), &mut enclosing)
+    }
+
+    fn eval_function(&self, f: fn(Vec<Expr>) -> Result<Expr, String>, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        let mut evaluated_args = Vec::new();
+        for arg in args {
+            match self.evaluate(&arg, env) {
+                Ok(e) => evaluated_args.push(e),
+                Err(e) => return Err(e),
+            }
+        }
+        f(evaluated_args)
     }
 }
 
@@ -111,7 +147,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn eval_number() {
+    fn eval_booleans() {
+        assert_eval("true", Expr::Bool(true));
+        assert_eval("false", Expr::Bool(false));
+    }
+
+    #[test]
+    fn eval_numbers() {
         assert_eval("486", Expr::Number(486.0));
     }
 
@@ -122,6 +164,11 @@ mod tests {
 
     #[test]
     fn eval_expressions() {
+        assert_eval("(= 1 2)", Expr::Bool(false));
+        assert_eval("(< 1 2)", Expr::Bool(true));
+        assert_eval("(> 1 2)", Expr::Bool(false));
+        assert_eval("(<= 1 2)", Expr::Bool(true));
+        assert_eval("(>= 1 2)", Expr::Bool(false));
         assert_eval("(+ 137 349)", Expr::Number(486.0));
         assert_eval("(- 1000)", Expr::Number(-1000.0));
         assert_eval("(- 1000 334)", Expr::Number(666.0));
@@ -130,15 +177,6 @@ mod tests {
         assert_eval("(+ 2.7 10)", Expr::Number(12.7));
         assert_eval("(+ 1)", Expr::Number(1.0));
         assert_eval("(+1)", Expr::Number(1.0));
-    }
-
-    #[test]
-    fn eval_booleans() {
-        assert_eval("(= 1 2)", Expr::Bool(false));
-        assert_eval("(< 1 2)", Expr::Bool(true));
-        assert_eval("(> 1 2)", Expr::Bool(false));
-        assert_eval("(<= 1 2)", Expr::Bool(true));
-        assert_eval("(>= 1 2)", Expr::Bool(false));
     }
 
     #[test]
@@ -155,7 +193,7 @@ mod tests {
     }
 
     #[test]
-    fn definitions() {
+    fn eval_symbols() {
         assert_definition("(define a2 2)",
                           Expr::Identifier("a2".to_string()),
                           Expr::Number(2.0),
@@ -163,7 +201,7 @@ mod tests {
 
         assert_definition("(define plus_one (+ 1))",
                           Expr::Identifier("plus_one".to_string()),
-                          Expr::Expression(vec![Expr::Identifier("+".to_string()), Expr::Number(1.0)]),
+                          Expr::Expression("+".to_string(), vec![Expr::Number(1.0)]),
         );
 
         assert_definition("(define (square x) (* x x))",
@@ -171,8 +209,7 @@ mod tests {
                           Expr::Procedure(
                               "square".to_string(),
                               vec![Expr::Identifier("x".to_string())],
-                              Box::new(Expr::Expression(vec![
-                                  Expr::Identifier("*".to_string()),
+                              Box::new(Expr::Expression("*".to_string(), vec![
                                   Expr::Identifier("x".to_string()),
                                   Expr::Identifier("x".to_string())
                               ])),
@@ -188,6 +225,11 @@ mod tests {
                     b",
                     Expr::Number(1.0),
         );
+    }
+
+    #[test]
+    fn eval_conditions() {
+        assert_eval("(cond ((< 1 2) 1))", Expr::Number(1.0));
     }
 
     #[test]
@@ -235,21 +277,18 @@ mod tests {
 
         let tokens = match lexer.lex(source) {
             Ok(tokens) => tokens,
-            Err(e) => return Err(format!("Lexing error: {}.", e))
+            Err(e) => return Err(format!("Lexing error: {}", e))
         };
 
-        let exprs = match parser.parse(tokens) {
-            Ok(exprs) => exprs,
-            Err(e) => return Err(format!("Parsing error: {}.", e))
+        let expr = match parser.parse(tokens) {
+            Ok(e) => e,
+            Err(e) => return Err(format!("Parsing error: {}", e))
         };
 
-        let mut res = None;
-        for expr in exprs {
-            res = match evaluator.evaluate(&expr, globals) {
-                Ok(expr) => Some(expr),
-                Err(e) => return Err(e)
-            }
-        }
+        let res = match evaluator.evaluate(&expr, globals) {
+            Ok(expr) => Some(expr),
+            Err(e) => return Err(e)
+        };
 
         match res {
             Some(result) => Ok(result),

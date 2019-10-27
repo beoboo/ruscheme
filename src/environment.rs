@@ -118,7 +118,7 @@ impl Environment<'_> {
     }
 
     pub fn define_func(&mut self, name: &str, func: fn(args: Vec<Expr>) -> Result<Expr, String>) {
-        self.define(name, Expr::Func(name.to_string(), func));
+        self.define(name, Expr::Function(name.to_string(), func));
     }
 
     pub fn define(&mut self, key: &str, expr: Expr) {
