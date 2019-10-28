@@ -15,6 +15,7 @@ impl Evaluator {
         match expr {
             Expr::Bool(_) => Ok(expr.clone()),
             Expr::Cond(predicate_branches, else_branch) => self.eval_cond(predicate_branches, else_branch, env),
+            Expr::If(predicate, then_branch, else_branch) => self.eval_if(predicate, then_branch, else_branch, env),
             Expr::Define(name, expr) => self.eval_definition(name, expr, env),
             Expr::Empty => Ok(expr.clone()),
             Expr::Expression(name, args) => self.eval_function_call(name, args, env),
@@ -38,12 +39,22 @@ impl Evaluator {
             }
         }
 
-        Ok(Expr::Empty)
+        self.eval_list(_else_branch, env)
     }
 
     fn eval_definition(&self, name: &String, expr: &Box<Expr>, env: &mut Environment) -> Result<Expr, String> {
         env.define(name, expr.as_ref().clone());
         Ok(Expr::Identifier(name.to_string()))
+    }
+
+    fn eval_if(&self, predicate: &Box<Expr>, then_branch: &Box<Expr>, else_branch: &Option<Box<Expr>>, env: &mut Environment) -> Result<Expr, String> {
+        match self.evaluate(predicate, env) {
+            Ok(Expr::Bool(true)) => self.evaluate(then_branch.as_ref(), env),
+            _ => match else_branch {
+                Some(e) => self.evaluate(e, env),
+                _ => Ok(Expr::Empty)
+            }
+        }
     }
 
     fn eval_list(&self, exprs: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
@@ -222,6 +233,13 @@ mod tests {
     fn eval_conditions() {
         assert_eval("(cond ((< 1 2) 1))", Expr::Number(1.0));
         assert_eval("(cond ((< 1 2) 1 2))", Expr::Number(2.0));
+        assert_eval("(cond ((> 1 2) 1) (else 2))", Expr::Number(2.0));
+    }
+
+    #[test]
+    fn eval_ifs() {
+        assert_eval("(if (< 1 2) 1)", Expr::Number(1.0));
+        assert_eval("(if (> 1 2) 1 2)", Expr::Number(2.0));
     }
 
     #[test]
