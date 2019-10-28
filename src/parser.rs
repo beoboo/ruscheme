@@ -3,6 +3,7 @@ use std::slice::Iter;
 
 use log::debug;
 
+use crate::error::Error;
 use crate::expr::*;
 use crate::token::*;
 
@@ -17,9 +18,9 @@ impl Parser {
         Parser {}
     }
 
-    pub fn parse(&self, tokens: Vec<Token>) -> Result<Expr, String> {
+    pub fn parse(&self, tokens: Vec<Token>) -> Result<Expr, Error> {
         if tokens.len() == 0 {
-            return Err(format!("No tokens available"));
+            return report_error("No tokens available");
         }
 
         let mut it = tokens.iter().peekable();
@@ -33,7 +34,7 @@ impl Parser {
 
             match self.expression(&mut it) {
                 Ok(expr) => exprs.push(expr),
-                Err(e) => return Err(e)
+                Err(e) => return report_error(&e)
             };
         }
 
@@ -109,7 +110,7 @@ impl Parser {
                             if advance(it).is_err() {
                                 return Err(format!("Expected ')' after 'else'."));
                             }
-                        },
+                        }
                         _ => {
                             if else_branch.len() > 0 {
                                 return Err(format!("Misplaced 'else' clause."));
@@ -149,7 +150,7 @@ impl Parser {
         let mut else_branch = None;
 
         match peek(it) {
-            TokenType::Paren(')') => {},
+            TokenType::Paren(')') => {}
             _ => else_branch = match self.expression(it) {
                 Ok(e) => Some(Box::new(e)),
                 Err(e) => return Err(e)
@@ -274,6 +275,10 @@ impl Parser {
 
         Ok(exprs)
     }
+}
+
+fn report_error<T>(err: &str) -> Result<T, Error> {
+    Err(Error::Parser(err.to_string()))
 }
 
 fn advance(it: &mut PeekableToken) -> Result<TokenType, String> {
@@ -427,7 +432,7 @@ mod tests {
         assert_that!(expr, equal_to(Expr::List(vec![Expr::Identifier("+".to_string()), Expr::Number(123.0), Expr::Number(456.0)])));
     }
 
-    fn parse(source: &str) -> Result<Expr, String> {
+    fn parse(source: &str) -> Result<Expr, Error> {
         let lexer = Lexer::new();
         let tokens = lexer.lex(source).unwrap();
         let parser = Parser::new();
@@ -435,16 +440,16 @@ mod tests {
         parser.parse(tokens)
     }
 
-    fn assert_invalid(source: &str, message: &str) {
-        let res = parse(source);
-
-        assert!(res.is_err());
-        assert_that!(res.err().unwrap(), equal_to(message));
-    }
-
     fn assert_parse(source: &str, expr: Expr) {
         let res = parse(source);
 
         assert_that!(res.unwrap(), equal_to(expr));
+    }
+
+    fn assert_invalid(source: &str, message: &str) {
+        let res = parse(source);
+
+        assert!(res.is_err());
+        assert_that!(res.err().unwrap().to_string(), equal_to(message));
     }
 }

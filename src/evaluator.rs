@@ -2,6 +2,7 @@ use std::ops::Deref;
 
 use crate::environment::Environment;
 use crate::expr::Expr;
+use crate::error::Error;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Evaluator {}
@@ -11,7 +12,14 @@ impl Evaluator {
         Evaluator {}
     }
 
-    pub fn evaluate(&self, expr: &Expr, env: &mut Environment) -> Result<Expr, String> {
+    pub fn evaluate(&self, expr: &Expr, env: &mut Environment) -> Result<Expr, Error> {
+        match self.eval(expr, env) {
+            Ok(res) => Ok(res),
+            Err(e) => Err(Error::Evaluator(e))
+        }
+    }
+
+    fn eval(&self, expr: &Expr, env: &mut Environment) -> Result<Expr, String> {
         match expr {
             Expr::Bool(_) => Ok(expr.clone()),
             Expr::Cond(predicate_branches, else_branch) => self.eval_cond(predicate_branches, else_branch, env),
@@ -30,7 +38,7 @@ impl Evaluator {
         for branch in predicate_branches {
             match branch {
                 Expr::Predicate(predicate, exprs) => {
-                    match self.evaluate(predicate, env) {
+                    match self.eval(predicate, env) {
                         Ok(Expr::Bool(true)) => return self.eval_list(exprs, env),
                         _ => {}
                     }
@@ -48,10 +56,10 @@ impl Evaluator {
     }
 
     fn eval_if(&self, predicate: &Box<Expr>, then_branch: &Box<Expr>, else_branch: &Option<Box<Expr>>, env: &mut Environment) -> Result<Expr, String> {
-        match self.evaluate(predicate, env) {
-            Ok(Expr::Bool(true)) => self.evaluate(then_branch.as_ref(), env),
+        match self.eval(predicate, env) {
+            Ok(Expr::Bool(true)) => self.eval(then_branch.as_ref(), env),
             _ => match else_branch {
-                Some(e) => self.evaluate(e, env),
+                Some(e) => self.eval(e, env),
                 _ => Ok(Expr::Empty)
             }
         }
@@ -60,7 +68,7 @@ impl Evaluator {
     fn eval_list(&self, exprs: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
         let mut res = Expr::Empty;
         for expr in exprs {
-            res = match self.evaluate(expr, env) {
+            res = match self.eval(expr, env) {
                 Ok(expr) => expr,
                 Err(e) => return Err(e)
             }
@@ -74,7 +82,7 @@ impl Evaluator {
 
         match res {
             Ok(expr) => {
-                self.evaluate(&expr.clone(), env)
+                self.eval(&expr.clone(), env)
             }
             _ => Err(format!("Undefined identifier: \"{}\".", s))
         }
@@ -115,7 +123,7 @@ impl Evaluator {
                 None => return Err(format!("Wrong number of params"))
             };
 
-            match self.evaluate(&arg, env) {
+            match self.eval(&arg, env) {
                 Ok(e) => {
                     enclosing.define(&param.to_string(), e)
                 }
@@ -123,18 +131,18 @@ impl Evaluator {
             }
         }
 
-        self.evaluate(body.deref(), &mut enclosing)
+        self.eval(body.deref(), &mut enclosing)
     }
 
     fn eval_function(&self, f: fn(Vec<Expr>) -> Result<Expr, String>, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
-        let mut evaluated_args = Vec::new();
+        let mut evald_args = Vec::new();
         for arg in args {
-            match self.evaluate(&arg, env) {
-                Ok(e) => evaluated_args.push(e),
+            match self.eval(&arg, env) {
+                Ok(e) => evald_args.push(e),
                 Err(e) => return Err(e),
             }
         }
-        f(evaluated_args)
+        f(evald_args)
     }
 }
 
@@ -277,10 +285,10 @@ mod tests {
         let mut globals = Environment::global();
         let res = eval(expr, &mut globals);
 
-        assert_that!(res.err(), equal_to(Some(err)));
+        assert_that!(res.err().unwrap().to_string(), equal_to(err));
     }
 
-    fn eval(source: &str, globals: &mut Environment) -> Result<Expr, String> {
+    fn eval(source: &str, globals: &mut Environment) -> Result<Expr, Error> {
         let lexer = Lexer::new();
         let parser = Parser::new();
         let evaluator = Evaluator::new();
@@ -302,7 +310,7 @@ mod tests {
 
         match res {
             Some(result) => Ok(result),
-            None => Err(format!("No expressions to evaluate."))
+            None => Err(Error::Evaluator(format!("No expressions to eval.")))
         }
     }
 }

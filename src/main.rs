@@ -8,16 +8,18 @@ use std::io::prelude::*;
 use colored::*;
 
 use crate::environment::Environment;
+use crate::error::Error;
 use crate::evaluator::*;
 use crate::lexer::*;
 use crate::parser::*;
 
+mod environment;
+mod error;
+mod evaluator;
+mod expr;
 mod lexer;
 mod parser;
 mod token;
-mod expr;
-mod evaluator;
-mod environment;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -40,12 +42,17 @@ fn repl() {
 
         if io::stdin().read_line(&mut line).is_ok() {
             source += line.as_str();
+
             match run(&source, &mut globals) {
                 Err(e) => {
-                    eprintln!("{}", format!("{}", e).red())
-                }
-//                Err(_) => { }
-                _ => source = String::new(),
+                    eprintln!("{}", format!("{}", e).red());
+
+                    match e {
+                        Error::Parser(_) => {},
+                        _ => source = String::new(),
+                    }
+                },
+                _ => {}
             };
         }
     }
@@ -63,7 +70,7 @@ fn run_file(filename: &String) {
     };
 }
 
-fn run(source: &str, globals: &mut Environment) -> Result<(), String> {
+fn run(source: &str, globals: &mut Environment) -> Result<(), Error> {
     let lexer: Lexer = Lexer::new();
 
     let res = lexer.lex(source);
@@ -71,9 +78,7 @@ fn run(source: &str, globals: &mut Environment) -> Result<(), String> {
 
     match res {
         Ok(t) => tokens = t,
-        Err(e) => {
-            return Err(format!("Lexing error: {}", e));
-        }
+        Err(e) => return Err(e)
     };
 
 //    println!("{} token{}:", &tokens.len(), if tokens.len() != 1 { "s" } else { "" });
@@ -87,9 +92,7 @@ fn run(source: &str, globals: &mut Environment) -> Result<(), String> {
 
     let expr = match res {
         Ok(expr) => expr,
-        Err(e) => {
-            return Err(format!("Parsing error: {}", e));
-        }
+        Err(e) => return Err(e)
     };
 //
 //    println!("{} expression{}:", &expressions.len(), if expressions.len() != 1 { "s" } else { "" });
@@ -102,7 +105,7 @@ fn run(source: &str, globals: &mut Environment) -> Result<(), String> {
 
     match evaluator.evaluate(&expr, globals) {
         Ok(res) => println!("{}", res.to_string().green()),
-        Err(e) => return Err(format!("Evaluating error: {}", e))
+        Err(e) => return Err(e)
     }
 
     Ok(())

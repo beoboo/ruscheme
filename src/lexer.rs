@@ -1,22 +1,17 @@
 use std::iter::Peekable;
 
 use crate::token::*;
+use crate::error::Error;
 
 #[derive(Debug)]
-pub struct Lexer {
-    //    tokens: Vec<Token>,
-//    line: u32,
-}
+pub struct Lexer {}
 
 impl Lexer {
     pub fn new() -> Lexer {
-        Lexer {
-//            tokens: Vec::new(),
-//            line: 1,
-        }
+        Lexer {}
     }
 
-    pub fn lex(&self, source: &str) -> Result<Vec<Token>, String> {
+    pub fn lex(&self, source: &str) -> Result<Vec<Token>, Error> {
         let mut it = source.chars().peekable();
         let mut tokens = Vec::new();
         let mut line = 1;
@@ -47,7 +42,7 @@ impl Lexer {
                         identifier(&mut it)
                     }
                     else {
-                        return Err(format!("Invalid token: \"{}\"", advance(&mut it)));
+                        return Err(Error::Lexer(format!("Invalid token: \"{}\"", advance(&mut it))));
                     }
                 }
             };
@@ -168,7 +163,7 @@ mod tests {
         let lexer = Lexer::new();
         match lexer.lex(",") {
             Ok(t) => panic!("Unexpected valid tokens: {:?}", t),
-            Err(e) => assert_that!(&e, equal_to("Invalid token: \",\""))
+            Err(e) => assert_that!(e.to_string(), equal_to("Invalid token: \",\""))
         }
     }
 
