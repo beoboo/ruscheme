@@ -3,16 +3,19 @@ use std::fmt;
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Empty,
+    And(Vec<Expr>),
     Bool(bool),
     Cond(Vec<Expr>, Vec<Expr>),
-    Predicate(Box<Expr>, Vec<Expr>),
-    Identifier(String),
-    If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
-    Number(f64),
     Define(String, Box<Expr>),
-    List(Vec<Expr>),
     Expression(String, Vec<Expr>),
     Function(String, fn(Vec<Expr>) -> Result<Expr, String>),
+    Identifier(String),
+    If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
+    List(Vec<Expr>),
+    Not(Box<Expr>),
+    Number(f64),
+    Or(Vec<Expr>),
+    Predicate(Box<Expr>, Vec<Expr>),
     Procedure(String, Vec<Expr>, Box<Expr>),
 }
 
@@ -28,6 +31,7 @@ impl Expr {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Expr::And(exprs) => write!(f, "(and {})", build_str(exprs)),
             Expr::Bool(b) => write!(f, "{}", if *b { "#t" } else { "#f" }),
             Expr::Cond(predicate_branches, else_branch) => {
                 let predicates = build_str(predicate_branches);
@@ -59,7 +63,9 @@ impl fmt::Display for Expr {
                 }
             }
             Expr::List(exprs) => write!(f, "[{}]", build_str(exprs)),
+            Expr::Not(expr) => write!(f, "(not {})", expr),
             Expr::Number(n) => write!(f, "{}", n),
+            Expr::Or(exprs) => write!(f, "(or {})", build_str(exprs)),
             Expr::Predicate(test, exprs) => write!(f, "({} {})", test, build_str(exprs)),
             Expr::Procedure(name, _, _) => write!(f, "procedure \"{}\"", name),
 //            e => write!(f, "Undefined expression \"{:?}\"", e),

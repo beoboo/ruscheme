@@ -69,10 +69,13 @@ impl Parser {
         }
 
         let res = match advance(it) {
+            Ok(TokenType::And) => self.and(it),
             Ok(TokenType::Cond) => self.condition(it),
             Ok(TokenType::Define) => self.definition(it),
             Ok(TokenType::If) => self.if_then(it),
             Ok(TokenType::Identifier(i)) => self.function_call(i, it),
+            Ok(TokenType::Not) => self.not(it),
+            Ok(TokenType::Or) => self.or(it),
             Ok(t) => Err(format!("\"{}\" is not callable.", t)),
             Err(e) => Err(e),
         };
@@ -83,6 +86,27 @@ impl Parser {
             return Err(format!("Expected ')' after form."));
         }
         res
+    }
+
+    fn or(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, String> {
+        match self.build_expressions(it) {
+            Ok(exprs) => Ok(Expr::Or(exprs)),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn not(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, String> {
+        match self.expression(it) {
+            Ok(expr) => Ok(Expr::Not(Box::new(expr))),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn and(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, String> {
+        match self.build_expressions(it) {
+            Ok(exprs) => Ok(Expr::And(exprs)),
+            Err(e) => Err(e),
+        }
     }
 
     fn condition(&self, it: &mut PeekableToken) -> Result<Expr, String> {
@@ -342,6 +366,16 @@ mod tests {
         assert_parse("(+ 1 2)", Expr::List(vec![Expr::Expression("+".to_string(), vec![
             Expr::Number(1.0), Expr::Number(2.0)
         ])]));
+
+        assert_parse("(and true false)", Expr::List(vec![Expr::And(vec![
+            Expr::Bool(true), Expr::Bool(false)
+        ])]));
+        assert_parse("(or true false)", Expr::List(vec![Expr::Or(vec![
+            Expr::Bool(true), Expr::Bool(false)
+        ])]));
+        assert_parse("(not true)", Expr::List(vec![Expr::Not(
+            Box::new(Expr::Bool(true))
+        )]));
     }
 
     #[test]

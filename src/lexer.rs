@@ -68,11 +68,14 @@ fn identifier<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> TokenType {
     }
 
     match id.as_ref() {
+        "and" => TokenType::And,
         "cond" => TokenType::Cond,
         "define" => TokenType::Define,
         "else" => TokenType::Else,
         "false" => TokenType::Bool(false),
         "if" => TokenType::If,
+        "not" => TokenType::Not,
+        "or" => TokenType::Or,
         "true" => TokenType::Bool(true),
         _ => TokenType::Identifier(id)
     }
@@ -181,12 +184,15 @@ mod tests {
     #[test]
     fn lex_keywords() {
         let lexer = Lexer::new();
-        let tokens = lexer.lex("cond define else if").unwrap();
+        let tokens = lexer.lex("and cond define else if not or").unwrap();
 
-        assert_token(&tokens[0], &TokenType::Cond, 1);
-        assert_token(&tokens[1], &TokenType::Define, 1);
-        assert_token(&tokens[2], &TokenType::Else, 1);
-        assert_token(&tokens[3], &TokenType::If, 1);
+        assert_token(&tokens[0], &TokenType::And, 1);
+        assert_token(&tokens[1], &TokenType::Cond, 1);
+        assert_token(&tokens[2], &TokenType::Define, 1);
+        assert_token(&tokens[3], &TokenType::Else, 1);
+        assert_token(&tokens[4], &TokenType::If, 1);
+        assert_token(&tokens[5], &TokenType::Not, 1);
+        assert_token(&tokens[6], &TokenType::Or, 1);
     }
 
     #[test]

@@ -21,6 +21,7 @@ impl Evaluator {
 
     fn eval(&self, expr: &Expr, env: &mut Environment) -> Result<Expr, String> {
         match expr {
+            Expr::And(exprs) => self.eval_and(exprs, env),
             Expr::Bool(_) => Ok(expr.clone()),
             Expr::Cond(predicate_branches, else_branch) => self.eval_cond(predicate_branches, else_branch, env),
             Expr::If(predicate, then_branch, else_branch) => self.eval_if(predicate, then_branch, else_branch, env),
@@ -28,10 +29,45 @@ impl Evaluator {
             Expr::Empty => Ok(expr.clone()),
             Expr::Expression(name, args) => self.eval_function_call(name, args, env),
             Expr::Identifier(s) => self.eval_identifier(s, env),
+            Expr::Not(expr) => self.eval_not(expr, env),
             Expr::Number(_) => Ok(expr.clone()),
+            Expr::Or(exprs) => self.eval_or(exprs, env),
             Expr::List(list) => self.eval_list(list, env),
             e => panic!("Unmapped expression: {}", e)
         }
+    }
+
+    fn eval_and(&self, exprs: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        for expr in exprs {
+            match self.eval(expr, env) {
+                Ok(expr) => if !to_bool(expr) {
+                    return Ok(Expr::Bool(false));
+                }
+                Err(e) => return Err(format!("Invalid expression: {}", e)),
+            }
+        }
+
+        Ok(Expr::Bool(true))
+    }
+
+    fn eval_not(&self, expr: &Box<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        match self.eval(expr.as_ref(), env) {
+            Ok(expr) => Ok(Expr::Bool(!to_bool(expr))),
+            Err(e) => Err(format!("Invalid expression: {}", e)),
+        }
+    }
+
+    fn eval_or(&self, exprs: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        for expr in exprs {
+            match self.eval(expr, env) {
+                Ok(expr) => if to_bool(expr) {
+                    return Ok(Expr::Bool(true));
+                }
+                Err(e) => return Err(format!("Invalid expression: {}", e)),
+            }
+        }
+
+        Ok(Expr::Bool(false))
     }
 
     fn eval_cond(&self, predicate_branches: &Vec<Expr>, _else_branch: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
@@ -146,6 +182,9 @@ impl Evaluator {
     }
 }
 
+fn to_bool(expr: Expr) -> bool {
+    expr != Expr::Bool(false)
+}
 
 #[cfg(test)]
 mod tests {
@@ -187,6 +226,9 @@ mod tests {
         assert_eval("(+ 2.7 10)", Expr::Number(12.7));
         assert_eval("(+ 1)", Expr::Number(1.0));
         assert_eval("(+1)", Expr::Number(1.0));
+        assert_eval("(and true (< 1 2))", Expr::Bool(true));
+        assert_eval("(or false (> 1 2))", Expr::Bool(false));
+        assert_eval("(not true)", Expr::Bool(false));
     }
 
     #[test]
