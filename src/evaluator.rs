@@ -44,16 +44,6 @@ impl Evaluator {
         env.define(name, expr.as_ref().clone());
         Ok(Expr::Identifier(name.to_string()))
     }
-//
-//    fn eval_expression(&self, name: String, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
-//        let (form, args) = list.split_first().unwrap();
-//
-//        match form {
-//            Expr::Definition(name, expr) => ,
-//            Expr::Identifier(s) => self.eval_function_call(&s, args.to_vec(), env),
-//            _ => return Err(format!("Undefined form: \"{}\".", form))
-//        }
-//    }
 
     fn eval_list(&self, exprs: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
         let mut res = Expr::Empty;
@@ -181,9 +171,9 @@ mod tests {
 
     #[test]
     fn eval_invalid() {
-        assert_invalid("define a 2", "\"define\" cannot be used outside expression.".to_string());
+        assert_invalid("define a 2", "\"define\" cannot be used outside expressions.".to_string());
         assert_invalid("u", "Undefined identifier: \"u\".".to_string());
-        assert_invalid("(123)", "Undefined form: \"123\".".to_string());
+        assert_invalid("(123)", "\"123\" is not callable.".to_string());
         assert_invalid("(+)", "At least 1 argument required.".to_string());
         assert_invalid("(-)", "At least 1 argument required.".to_string());
         assert_invalid("(*)", "At least 1 argument required.".to_string());
@@ -277,12 +267,12 @@ mod tests {
 
         let tokens = match lexer.lex(source) {
             Ok(tokens) => tokens,
-            Err(e) => return Err(format!("Lexing error: {}", e))
+            Err(e) => return Err(e)
         };
 
         let expr = match parser.parse(tokens) {
             Ok(e) => e,
-            Err(e) => return Err(format!("Parsing error: {}", e))
+            Err(e) => return Err(e)
         };
 
         let res = match evaluator.evaluate(&expr, globals) {

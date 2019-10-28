@@ -26,7 +26,6 @@ impl Parser {
 
         loop {
             let token_type = peek(&mut it);
-//            println!("Token: {}", token_type);
             if token_type == TokenType::EOF {
                 break;
             }
@@ -52,7 +51,7 @@ impl Parser {
             TokenType::Bool(b) => Ok(Expr::Bool(b)),
             TokenType::Identifier(i) => Ok(Expr::Identifier(i)),
             TokenType::Number(n) => Ok(Expr::Number(n)),
-
+            TokenType::Define => Err(format!("\"define\" cannot be used outside expressions.")),
             TokenType::Paren('(') => self.form(it),
             t => Err(format!("Undefined token type: {}.", t))
         }
@@ -68,10 +67,10 @@ impl Parser {
         }
 
         let res = match advance(it) {
-            Ok(TokenType::Define) => self.definition(it),
             Ok(TokenType::Cond) => self.condition(it),
+            Ok(TokenType::Define) => self.definition(it),
             Ok(TokenType::Identifier(i)) => self.function_call(i, it),
-            Ok(t) => Err(format!("Undefined token type: {}.", t)),
+            Ok(t) => Err(format!("\"{}\" is not callable.", t)),
             Err(e) => Err(e),
         };
 
@@ -202,21 +201,10 @@ impl Parser {
             return Err(format!("Expected ')' after procedure parameters."));
         }
 
-//
-//        match peek(it) {
-//            Some(token) => token,
-//            None => return Err(format!("Expected procedure body."))
-//        };
-
         let expr = match self.expression(it) {
             Ok(expr) => expr,
             Err(e) => return Err(e),
         };
-//
-//        // Consume the ')'.
-//        if advance(it).is_err() {
-//            return Err(format!("Expected ')' after procedure."));
-//        }
 
         let procedure = Expr::Procedure(name.to_string(), params, Box::new(expr));
 
@@ -268,6 +256,10 @@ mod tests {
 
     use super::*;
 
+    fn init() {
+        let _ = env_logger::builder().is_test(true).try_init();
+    }
+
     #[test]
     fn parse_empty() {
         let parser = Parser::new();
@@ -276,8 +268,8 @@ mod tests {
 
     #[test]
     fn parse_invalid() {
-        assert_invalid("define", "Cannot execute \"1\".");
-        assert_invalid("(1)", "Cannot execute \"1\".");
+        assert_invalid("define", "\"define\" cannot be used outside expressions.");
+        assert_invalid("(1)", "\"1\" is not callable.");
     }
 
     #[test]
@@ -306,8 +298,8 @@ mod tests {
 
     #[test]
     fn parse_definitions() {
-//        assert_parse("(define a 1)", Expr::List(vec![Expr::Definition("a".to_string(), Box::new(Expr::Number(1.0)))]));
-//        assert_parse("(define a b)", Expr::List(vec![Expr::Definition("a".to_string(), Box::new(Expr::Identifier("b".to_string())))]));
+        assert_parse("(define a 1)", Expr::List(vec![Expr::Definition("a".to_string(), Box::new(Expr::Number(1.0)))]));
+        assert_parse("(define a b)", Expr::List(vec![Expr::Definition("a".to_string(), Box::new(Expr::Identifier("b".to_string())))]));
         assert_parse("(define a (+ 1))", Expr::List(vec![
             Expr::Definition("a".to_string(), Box::new(Expr::Expression("+".to_string(), vec![
                 Expr::Number(1.0)

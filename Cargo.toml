@@ -10,3 +10,4 @@ log = "*"
 
 [dev-dependencies]
 hamcrest2 = "*"
+env_logger = "*"
