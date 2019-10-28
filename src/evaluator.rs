@@ -14,8 +14,8 @@ impl Evaluator {
     pub fn evaluate(&self, expr: &Expr, env: &mut Environment) -> Result<Expr, String> {
         match expr {
             Expr::Bool(_) => Ok(expr.clone()),
-            Expr::Conditional(predicates) => self.eval_cond(predicates, env),
-            Expr::Definition(name, expr) => self.eval_definition(name, expr, env),
+            Expr::Cond(predicate_branches, else_branch) => self.eval_cond(predicate_branches, else_branch, env),
+            Expr::Define(name, expr) => self.eval_definition(name, expr, env),
             Expr::Empty => Ok(expr.clone()),
             Expr::Expression(name, args) => self.eval_function_call(name, args, env),
             Expr::Identifier(s) => self.eval_identifier(s, env),
@@ -25,9 +25,9 @@ impl Evaluator {
         }
     }
 
-    fn eval_cond(&self, predicates: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
-        for predicate in predicates {
-            match predicate {
+    fn eval_cond(&self, predicate_branches: &Vec<Expr>, _else_branch: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        for branch in predicate_branches {
+            match branch {
                 Expr::Predicate(predicate, exprs) => {
                     match self.evaluate(predicate, env) {
                         Ok(Expr::Bool(true)) => return self.eval_list(exprs, env),
@@ -37,6 +37,7 @@ impl Evaluator {
                 e => return Err(format!("Invalid predicate: {}", e))
             }
         }
+
         Ok(Expr::Empty)
     }
 
@@ -220,6 +221,7 @@ mod tests {
     #[test]
     fn eval_conditions() {
         assert_eval("(cond ((< 1 2) 1))", Expr::Number(1.0));
+        assert_eval("(cond ((< 1 2) 1 2))", Expr::Number(2.0));
     }
 
     #[test]

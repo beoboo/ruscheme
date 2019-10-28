@@ -4,11 +4,11 @@ use std::fmt;
 pub enum Expr {
     Empty,
     Bool(bool),
-    Conditional(Vec<Expr>),
+    Cond(Vec<Expr>, Vec<Expr>),
     Predicate(Box<Expr>, Vec<Expr>),
     Identifier(String),
     Number(f64),
-    Definition(String, Box<Expr>),
+    Define(String, Box<Expr>),
     List(Vec<Expr>),
     Expression(String, Vec<Expr>),
     Function(String, fn(Vec<Expr>) -> Result<Expr, String>),
@@ -27,36 +27,40 @@ impl Expr {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Bool(b) => write!(f, "{}", b),
-            Expr::Conditional(_) => write!(f, "cond"),
-            Expr::Definition(name, _) => write!(f, "{}", name),
+            Expr::Bool(b) => write!(f, "{}", if *b { "#t" } else { "#f" }),
+            Expr::Cond(predicate_branches, else_branch) => {
+                let predicates = build_str(predicate_branches);
+
+                if else_branch.len() == 0 {
+                    write!(f, "(cond {})", predicates)
+                } else {
+                    write!(f, "(cond {} {})", predicates, build_str(else_branch))
+                }
+            }
+            Expr::Define(name, _) => write!(f, "{}", name),
             Expr::Empty => write!(f, "()"),
             Expr::Expression(name, exprs) => {
                 if exprs.len() == 0 {
                     write!(f, "({})", name)
                 } else {
-                    let s = exprs.iter().map(|e| e.to_string());
-                    let s: Vec<String> = s.collect();
-                    let s = s.join(",");
-
-                    write!(f, "({}{})", name, s)
+                    write!(f, "({} {})", name, build_str(exprs))
                 }
             }
-            Expr::List(exprs) => {
-                let s = exprs.iter().map(|e| e.to_string());
-                let s: Vec<String> = s.collect();
-                let s = s.join(",");
-
-                write!(f, "[{}]", s)
-            }
+            Expr::List(exprs) => write!(f, "[{}]", build_str(exprs)),
             Expr::Function(name, _) => write!(f, "native \"{}\"", name),
             Expr::Identifier(s) => write!(f, "{}", s),
-            Expr::Predicate(_, _) => write!(f, "predicate"),
+            Expr::Predicate(test, exprs) => write!(f, "({} {})", test, build_str(exprs)),
             Expr::Number(n) => write!(f, "{}", n),
             Expr::Procedure(name, _, _) => write!(f, "procedure \"{}\"", name),
 //            e => write!(f, "Undefined expression \"{:?}\"", e),
         }
     }
+}
+
+fn build_str(exprs: &Vec<Expr>) -> String {
+    let res = exprs.iter().map(|e| e.to_string());
+    let res: Vec<String> = res.collect();
+    res.join(",")
 }
 
 

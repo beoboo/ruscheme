@@ -1,5 +1,6 @@
 use std::iter::Peekable;
 use std::slice::Iter;
+
 use log::debug;
 
 use crate::expr::*;
@@ -84,7 +85,8 @@ impl Parser {
 
     fn condition(&self, it: &mut PeekableToken) -> Result<Expr, String> {
         debug!("condition");
-        let mut predicates = Vec::new();
+        let mut predicate_branches = Vec::new();
+        let mut else_branch = Vec::new();
 
         loop {
             match peek(it) {
@@ -92,48 +94,51 @@ impl Parser {
                     // Consume the '('.
                     advance(it).unwrap();
 
-                    match self.predicate(it) {
-                        Ok(predicate) => predicates.push(predicate),
-                        Err(e) => return Err(e)
-                    }
+                    match peek(it) {
+                        TokenType::Else => {
+                            // Consume the 'else'.
+                            advance(it).unwrap();
+
+                            else_branch = match self.build_expressions(it) {
+                                Ok(exprs) => exprs,
+                                Err(e) => return Err(e)
+                            };
+
+                            // Consume the ')'.
+                            if advance(it).is_err() {
+                                return Err(format!("Expected ')' after 'else'."));
+                            }
+                        },
+                        _ => {
+                            match self.predicate(it) {
+                                Ok(predicate) => predicate_branches.push(predicate),
+                                Err(e) => return Err(e)
+                            }
+                        }
+                    };
                 }
                 TokenType::Paren(')') => break,
-                t => return Err(format!("Undefined token type: {}", t))
+                _ => return Err(format!("Expected ')' after cond."))
             };
         }
 
-        debug!("Predicates {:?}", predicates);
+        debug!("Predicates {:?}", predicate_branches);
+        debug!("Else {:?}", else_branch);
 
-        Ok(Expr::Conditional(predicates))
-    }
-
-    fn function_call(&self, name: String, it: &mut PeekableToken) -> Result<Expr, String> {
-        debug!("function call: {}", name);
-        let args = match self.build_arguments(it) {
-            Ok(args) => args,
-            Err(e) => return Err(e)
-        };
-
-        Ok(Expr::Expression(name, args))
+        Ok(Expr::Cond(predicate_branches, else_branch))
     }
 
     fn predicate(&self, it: &mut PeekableToken) -> Result<Expr, String> {
         debug!("predicate");
-        let mut exprs = Vec::new();
         let test = match self.expression(it) {
             Ok(expr) => expr,
             Err(e) => return Err(e),
         };
 
-        loop {
-            match peek(it) {
-                TokenType::Paren(')') => break,
-                _ => match self.expression(it) {
-                    Ok(expr) => exprs.push(expr),
-                    Err(e) => return Err(e)
-                }
-            }
-        }
+        let exprs = match self.build_expressions(it) {
+            Ok(exprs) => exprs,
+            Err(e) => return Err(e)
+        };
 
         // Consume the ')'.
         if advance(it).is_err() {
@@ -141,6 +146,16 @@ impl Parser {
         }
 
         Ok(Expr::Predicate(Box::new(test), exprs))
+    }
+
+    fn function_call(&self, name: String, it: &mut PeekableToken) -> Result<Expr, String> {
+        debug!("function call: {}", name);
+        let args = match self.build_expressions(it) {
+            Ok(args) => args,
+            Err(e) => return Err(e)
+        };
+
+        Ok(Expr::Expression(name, args))
     }
 
     fn definition(&self, it: &mut PeekableToken) -> Result<Expr, String> {
@@ -181,7 +196,7 @@ impl Parser {
             _ => return Err(format!("Expected expression after name."))
         };
 
-        Ok(Expr::Definition(name.to_string(), Box::new(expr)))
+        Ok(Expr::Define(name.to_string(), Box::new(expr)))
     }
 
     fn define_procedure(&self, it: &mut PeekableToken) -> Result<Expr, String> {
@@ -191,7 +206,7 @@ impl Parser {
         };
         debug!("procedure \"{}\"", name);
 
-        let params = match self.build_arguments(it) {
+        let params = match self.build_expressions(it) {
             Ok(list) => list,
             Err(e) => return Err(e)
         };
@@ -208,11 +223,11 @@ impl Parser {
 
         let procedure = Expr::Procedure(name.to_string(), params, Box::new(expr));
 
-        Ok(Expr::Definition(name.to_string(), Box::new(procedure)))
+        Ok(Expr::Define(name.to_string(), Box::new(procedure)))
     }
 
-    fn build_arguments(&self, it: &mut PeekableToken) -> Result<Vec<Expr>, String> {
-        let mut args: Vec<Expr> = Vec::new();
+    fn build_expressions(&self, it: &mut PeekableToken) -> Result<Vec<Expr>, String> {
+        let mut exprs: Vec<Expr> = Vec::new();
 
         loop {
             let token_type = peek(it);
@@ -220,13 +235,13 @@ impl Parser {
             match token_type {
                 TokenType::Paren(')') => break,
                 _ => match self.expression(it) {
-                    Ok(expr) => args.push(expr),
+                    Ok(expr) => exprs.push(expr),
                     Err(e) => return Err(e)
                 }
             }
         }
 
-        Ok(args)
+        Ok(exprs)
     }
 }
 
@@ -235,7 +250,7 @@ fn advance(it: &mut PeekableToken) -> Result<TokenType, String> {
         Some(token) => {
             debug!("Token: {}", token.token_type);
             Ok(token.token_type.clone())
-        },
+        }
         None => Err(format!("Token not found."))
     }
 }
@@ -255,10 +270,6 @@ mod tests {
     use crate::lexer::Lexer;
 
     use super::*;
-
-    fn init() {
-        let _ = env_logger::builder().is_test(true).try_init();
-    }
 
     #[test]
     fn parse_empty() {
@@ -297,47 +308,74 @@ mod tests {
     }
 
     #[test]
+    fn parse_conditions() {
+//        env_logger::init();
+
+        assert_parse("(cond (true 1))",
+                     Expr::List(vec![
+                         Expr::Cond(vec![
+                             Expr::Predicate(Box::new(Expr::Bool(true)), vec![Expr::Number(1.0)])
+                         ],
+                                    vec![],
+                         )
+                     ]));
+        assert_parse("(cond (true 1) (false 2))",
+                     Expr::List(vec![
+                         Expr::Cond(vec![
+                             Expr::Predicate(Box::new(Expr::Bool(true)), vec![Expr::Number(1.0)]),
+                             Expr::Predicate(Box::new(Expr::Bool(false)), vec![Expr::Number(2.0)]),
+                         ],
+                                    vec![],
+                         )
+                     ]));
+        assert_parse("(cond (true 1) (else 2))",
+                     Expr::List(vec![
+                         Expr::Cond(vec![
+                             Expr::Predicate(Box::new(Expr::Bool(true)), vec![Expr::Number(1.0)])
+                         ],
+                                    vec![Expr::Number(2.0)],
+                         )
+                     ]));
+//        parse("(cond (true 1) (else 2)").unwrap();
+
+//        assert_that!(expr, equal_to(vec![Expr::Identifier("+".to_string()), Expr::Number(123.0), Expr::Number(456.0)]));
+    }
+
+    #[test]
     fn parse_definitions() {
-        assert_parse("(define a 1)", Expr::List(vec![Expr::Definition("a".to_string(), Box::new(Expr::Number(1.0)))]));
-        assert_parse("(define a b)", Expr::List(vec![Expr::Definition("a".to_string(), Box::new(Expr::Identifier("b".to_string())))]));
+        assert_parse("(define a 1)", Expr::List(vec![Expr::Define("a".to_string(), Box::new(Expr::Number(1.0)))]));
+        assert_parse("(define a b)", Expr::List(vec![Expr::Define("a".to_string(), Box::new(Expr::Identifier("b".to_string())))]));
         assert_parse("(define a (+ 1))", Expr::List(vec![
-            Expr::Definition("a".to_string(), Box::new(Expr::Expression("+".to_string(), vec![
+            Expr::Define("a".to_string(), Box::new(Expr::Expression("+".to_string(), vec![
                 Expr::Number(1.0)
             ])))]));
         assert_parse("(define (one) 1)",
                      Expr::List(vec![
-                         Expr::Definition(
+                         Expr::Define(
                              "one".to_string(),
                              Box::new(Expr::Procedure(
                                  "one".to_string(),
                                  vec![],
-                                 Box::new(Expr::Number(1.0))
-                             ))
+                                 Box::new(Expr::Number(1.0)),
+                             )),
                          )
-                     ])
+                     ]),
         );
         assert_parse("(define (square x) (* x x))",
                      Expr::List(vec![
-                         Expr::Definition(
+                         Expr::Define(
                              "square".to_string(),
                              Box::new(Expr::Procedure(
                                  "square".to_string(),
                                  vec![Expr::Identifier("x".to_string())],
                                  Box::new(Expr::Expression(
                                      "*".to_string(),
-                                     vec![Expr::Identifier("x".to_string()), Expr::Identifier("x".to_string())]
-                                 ))
-                             ))
+                                     vec![Expr::Identifier("x".to_string()), Expr::Identifier("x".to_string())],
+                                 )),
+                             )),
                          )
-                     ])
+                     ]),
         );
-    }
-
-    #[test]
-    fn parse_conditions() {
-        parse("(cond (true 1))").unwrap();
-
-//        assert_that!(expr, equal_to(vec![Expr::Identifier("+".to_string()), Expr::Number(123.0), Expr::Number(456.0)]));
     }
 
     #[test]
