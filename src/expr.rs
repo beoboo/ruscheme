@@ -7,6 +7,7 @@ pub enum Expr {
     Cond(Vec<Expr>, Vec<Expr>),
     Predicate(Box<Expr>, Vec<Expr>),
     Identifier(String),
+    If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
     Number(f64),
     Define(String, Box<Expr>),
     List(Vec<Expr>),
@@ -46,11 +47,20 @@ impl fmt::Display for Expr {
                     write!(f, "({} {})", name, build_str(exprs))
                 }
             }
-            Expr::List(exprs) => write!(f, "[{}]", build_str(exprs)),
             Expr::Function(name, _) => write!(f, "native \"{}\"", name),
             Expr::Identifier(s) => write!(f, "{}", s),
-            Expr::Predicate(test, exprs) => write!(f, "({} {})", test, build_str(exprs)),
+            Expr::If(predicate, then_branch, else_branch) => {
+                let predicate = predicate.as_ref();
+                let then_branch = then_branch.as_ref();
+
+                match else_branch {
+                    Some(else_branch) => write!(f, "(if {} {} {})", predicate, then_branch, else_branch.as_ref()),
+                    None => write!(f, "(if {} {})", predicate, then_branch)
+                }
+            }
+            Expr::List(exprs) => write!(f, "[{}]", build_str(exprs)),
             Expr::Number(n) => write!(f, "{}", n),
+            Expr::Predicate(test, exprs) => write!(f, "({} {})", test, build_str(exprs)),
             Expr::Procedure(name, _, _) => write!(f, "procedure \"{}\"", name),
 //            e => write!(f, "Undefined expression \"{:?}\"", e),
         }

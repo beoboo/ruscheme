@@ -70,6 +70,7 @@ impl Parser {
         let res = match advance(it) {
             Ok(TokenType::Cond) => self.condition(it),
             Ok(TokenType::Define) => self.definition(it),
+            Ok(TokenType::If) => self.if_then(it),
             Ok(TokenType::Identifier(i)) => self.function_call(i, it),
             Ok(t) => Err(format!("\"{}\" is not callable.", t)),
             Err(e) => Err(e),
@@ -110,6 +111,10 @@ impl Parser {
                             }
                         },
                         _ => {
+                            if else_branch.len() > 0 {
+                                return Err(format!("Misplaced 'else' clause."));
+                            }
+
                             match self.predicate(it) {
                                 Ok(predicate) => predicate_branches.push(predicate),
                                 Err(e) => return Err(e)
@@ -126,6 +131,32 @@ impl Parser {
         debug!("Else {:?}", else_branch);
 
         Ok(Expr::Cond(predicate_branches, else_branch))
+    }
+
+    fn if_then(&self, it: &mut PeekableToken) -> Result<Expr, String> {
+        debug!("if_then");
+
+        let predicate = match self.expression(it) {
+            Ok(e) => e,
+            _ => return Err(format!("Expected predicate after 'if'."))
+        };
+
+        let then_branch = match self.expression(it) {
+            Ok(e) => e,
+            _ => return Err(format!("Expected expression after 'if'."))
+        };
+
+        let mut else_branch = None;
+
+        match peek(it) {
+            TokenType::Paren(')') => {},
+            _ => else_branch = match self.expression(it) {
+                Ok(e) => Some(Box::new(e)),
+                Err(e) => return Err(e)
+            }
+        }
+
+        Ok(Expr::If(Box::new(predicate), Box::new(then_branch), else_branch))
     }
 
     fn predicate(&self, it: &mut PeekableToken) -> Result<Expr, String> {
@@ -281,6 +312,7 @@ mod tests {
     fn parse_invalid() {
         assert_invalid("define", "\"define\" cannot be used outside expressions.");
         assert_invalid("(1)", "\"1\" is not callable.");
+        assert_invalid("(cond (else 1)(true 2))", "Misplaced 'else' clause.");
     }
 
     #[test]
@@ -309,8 +341,6 @@ mod tests {
 
     #[test]
     fn parse_conditions() {
-//        env_logger::init();
-
         assert_parse("(cond (true 1))",
                      Expr::List(vec![
                          Expr::Cond(vec![
@@ -336,9 +366,21 @@ mod tests {
                                     vec![Expr::Number(2.0)],
                          )
                      ]));
-//        parse("(cond (true 1) (else 2)").unwrap();
+    }
 
-//        assert_that!(expr, equal_to(vec![Expr::Identifier("+".to_string()), Expr::Number(123.0), Expr::Number(456.0)]));
+    #[test]
+    fn parse_ifs() {
+//        env_logger::init();
+
+        assert_parse("(if true 1)",
+                     Expr::List(vec![
+                         Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Number(1.0)), None)
+                     ]));
+
+        assert_parse("(if true 1 2)",
+                     Expr::List(vec![
+                         Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Number(1.0)), Some(Box::new(Expr::Number(2.0))))
+                     ]));
     }
 
     #[test]
