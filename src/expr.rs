@@ -7,7 +7,7 @@ pub enum Expr {
     Bool(bool),
     Cond(Vec<Expr>, Vec<Expr>),
     Define(String, Box<Expr>),
-    Expression(String, Vec<Expr>),
+    Expression(Box<Expr>, Vec<Expr>),
     Function(String, fn(Vec<Expr>) -> Result<Expr, String>),
     Identifier(String),
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
@@ -16,7 +16,7 @@ pub enum Expr {
     Number(f64),
     Or(Vec<Expr>),
     Predicate(Box<Expr>, Vec<Expr>),
-    Procedure(String, Vec<Expr>, Box<Expr>),
+    Procedure(String, Vec<Expr>, Vec<Expr>),
 }
 
 impl Expr {

@@ -20,89 +20,170 @@ impl Parser {
 
     pub fn parse(&self, tokens: Vec<Token>) -> Result<Expr, Error> {
         if tokens.len() == 0 {
-            return report_error("No tokens available");
+            return report_error("No tokens available.");
         }
 
         let mut it = tokens.iter().peekable();
-        let mut exprs = Vec::new();
 
+        let token_type = peek(&mut it);
+        if token_type == TokenType::EOF {
+            return report_error("Unexpected EOF.");
+        }
+
+        match self.expression_list(&mut it) {
+            Ok(expr) => Ok(expr),
+            Err(e) => report_error(&e)
+        }
+    }
+
+    fn expression_list(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, String> {
+        let mut exprs = Vec::new();
         loop {
-            let token_type = peek(&mut it);
+            let token_type = peek(it);
             if token_type == TokenType::EOF {
                 break;
             }
 
-            match self.expression(&mut it) {
+            match self.primitive(it) {
                 Ok(expr) => exprs.push(expr),
-                Err(e) => return report_error(&e)
-            };
+                Err(e) => return Err(e)
+            }
         }
 
-        Ok(Expr::List(exprs))
+        match exprs.len() {
+            0 => Ok(Expr::Empty),
+            _ => Ok(Expr::List(exprs))
+        }
+//        let exprs = match self.build_expressions(it) {
+//            Ok(exprs) => exprs,
+//            Err(e) => return Err(e),
+//        };
+//
+//        Ok(Expr::List(exprs))
     }
 
-    fn expression(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, String> {
-        debug!("expression");
+    fn primitive(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, String> {
         let token_type = match advance(it) {
             Ok(t) => t,
             Err(e) => return Err(e)
         };
 
-        debug!("expression \"{}\"", token_type);
-        match token_type {
+        debug!("primitive \"{}\"", &token_type);
+        let t2 = token_type.clone();
+        let res = match token_type {
+//            TokenType::Paren(')') => Ok(Expr::Empty),
             TokenType::Bool(b) => Ok(Expr::Bool(b)),
             TokenType::Identifier(i) => Ok(Expr::Identifier(i)),
             TokenType::Number(n) => Ok(Expr::Number(n)),
             TokenType::Define => Err(format!("\"define\" cannot be used outside expressions.")),
-            TokenType::Paren('(') => self.form(it),
+            TokenType::Paren('(') => self.expression(it),
             t => Err(format!("Undefined token type: {}.", t))
-        }
-    }
-
-    fn form(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, String> {
-        debug!("form");
-        if peek(it) == TokenType::Paren(')') {
-            // Consume the ')'.
-            advance(it).unwrap();
-
-            return Ok(Expr::Empty);
-        }
-
-        let res = match advance(it) {
-            Ok(TokenType::And) => self.and(it),
-            Ok(TokenType::Cond) => self.condition(it),
-            Ok(TokenType::Define) => self.definition(it),
-            Ok(TokenType::If) => self.if_then(it),
-            Ok(TokenType::Identifier(i)) => self.function_call(i, it),
-            Ok(TokenType::Not) => self.not(it),
-            Ok(TokenType::Or) => self.or(it),
-            Ok(t) => Err(format!("\"{}\" is not callable.", t)),
-            Err(e) => Err(e),
         };
+        debug!("end primitive \"{}\"", t2);
 
-        // Consume the ')'.
-        if advance(it).is_err() {
-            debug!("Consumung ')'");
-            return Err(format!("Expected ')' after form."));
-        }
         res
     }
 
-    fn or(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, String> {
-        match self.build_expressions(it) {
-            Ok(exprs) => Ok(Expr::Or(exprs)),
-            Err(e) => Err(e),
+    fn build_expressions(&self, it: &mut PeekableToken) -> Result<Vec<Expr>, String> {
+        debug!("expressions");
+        let mut exprs: Vec<Expr> = Vec::new();
+
+        loop {
+            let token_type = peek(it);
+
+            match token_type {
+                TokenType::Paren(')') => break,
+                TokenType::EOF => break,
+                _ => match self.primitive(it) {
+                    Ok(expr) => exprs.push(expr),
+                    Err(e) => return Err(e)
+                }
+            }
         }
+        debug!("end expressions");
+
+        Ok(exprs)
     }
 
-    fn not(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, String> {
-        match self.expression(it) {
-            Ok(expr) => Ok(Expr::Not(Box::new(expr))),
-            Err(e) => Err(e),
+    fn expression(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, String> {
+        let token_type = match advance(it) {
+            Ok(t) => t,
+            Err(e) => return Err(e)
+        };
+
+        debug!("expression: \"{}\"", token_type);
+        let t2 = token_type.clone();
+
+        let res = match token_type {
+            TokenType::And => return self.form(token_type, it),
+            TokenType::Cond => return self.form(token_type, it),
+            TokenType::Define => return self.form(token_type, it),
+            TokenType::If => return self.form(token_type, it),
+            TokenType::Identifier(_) => return self.form(token_type, it),
+            TokenType::Not => return self.form(token_type, it),
+            TokenType::Or => return self.form(token_type, it),
+            TokenType::Paren(')') => return Ok(Expr::Empty),
+            TokenType::Paren('(') => self.expression(it),
+            t => Err(format!("\"{}\" is not callable.", t)),
+        };
+
+        let expr = match res {
+            Ok(expr) => expr,
+            Err(e) => return Err(e)
+        };
+
+        let mut exprs = Vec::new();
+
+        loop {
+            let token_type = peek(it);
+
+            debug!("found: {}", &token_type);
+            match token_type {
+                TokenType::Paren(')') => break,
+                TokenType::EOF => break,
+                _ => match self.primitive(it) {
+                    Ok(expr) => exprs.push(expr),
+                    Err(e) => return Err(e)
+                }
+            }
         }
+        debug!("end expression: \"{}\"", t2);
+
+        if !consume(TokenType::Paren(')'), it) {
+            return Err(format!("Expected ')' after expression."));
+        }
+
+        Ok(Expr::Expression(Box::new(expr), exprs))
     }
 
-    fn and(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, String> {
+    fn form(&self, token_type: TokenType, it: &mut PeekableToken) -> Result<Expr, String> {
+        debug!("form \"{}\"", token_type);
+
+        let res = match token_type.clone() {
+            TokenType::And => self.and(it),
+            TokenType::Cond => self.condition(it),
+            TokenType::Define => self.definition(it),
+            TokenType::If => self.if_then(it),
+            TokenType::Identifier(i) => self.function_call(i, it),
+            TokenType::Not => self.not(it),
+            TokenType::Or => self.or(it),
+            t => return Err(format!("Undefined form \"{}\".", t))
+        };
+
+        if res.is_err() {
+            return res;
+        }
+
+        if !consume(TokenType::Paren(')'), it) {
+            return Err(format!("Expected ')' after \"{}\" form.", token_type));
+        }
+
+        debug!("end form \"{}\"", token_type);
+
+        res
+    }
+
+    fn and(&self, it: &mut PeekableToken) -> Result<Expr, String> {
         match self.build_expressions(it) {
             Ok(exprs) => Ok(Expr::And(exprs)),
             Err(e) => Err(e),
@@ -123,15 +204,14 @@ impl Parser {
                     match peek(it) {
                         TokenType::Else => {
                             // Consume the 'else'.
-                            advance(it).unwrap();
+                            it.next();
 
                             else_branch = match self.build_expressions(it) {
                                 Ok(exprs) => exprs,
                                 Err(e) => return Err(e)
                             };
 
-                            // Consume the ')'.
-                            if advance(it).is_err() {
+                            if !consume(TokenType::Paren(')'), it) {
                                 return Err(format!("Expected ')' after 'else'."));
                             }
                         }
@@ -141,7 +221,7 @@ impl Parser {
                             }
 
                             match self.predicate(it) {
-                                Ok(predicate) => predicate_branches.push(predicate),
+                                Ok(branch) => predicate_branches.push(branch),
                                 Err(e) => return Err(e)
                             }
                         }
@@ -158,15 +238,24 @@ impl Parser {
         Ok(Expr::Cond(predicate_branches, else_branch))
     }
 
+    fn definition(&self, it: &mut PeekableToken) -> Result<Expr, String> {
+        debug!("definition");
+        match advance(it) {
+            Ok(TokenType::Identifier(i)) => self.define_expression(&i, it),
+            Ok(TokenType::Paren('(')) => self.define_procedure(it),
+            t => return Err(format!("Expected name or '(' after define (found: {:?}).", t))
+        }
+    }
+
     fn if_then(&self, it: &mut PeekableToken) -> Result<Expr, String> {
         debug!("if_then");
 
-        let predicate = match self.expression(it) {
+        let predicate = match self.primitive(it) {
             Ok(e) => e,
             _ => return Err(format!("Expected predicate after 'if'."))
         };
 
-        let then_branch = match self.expression(it) {
+        let then_branch = match self.primitive(it) {
             Ok(e) => e,
             _ => return Err(format!("Expected expression after 'if'."))
         };
@@ -175,7 +264,7 @@ impl Parser {
 
         match peek(it) {
             TokenType::Paren(')') => {}
-            _ => else_branch = match self.expression(it) {
+            _ => else_branch = match self.primitive(it) {
                 Ok(e) => Some(Box::new(e)),
                 Err(e) => return Err(e)
             }
@@ -184,9 +273,23 @@ impl Parser {
         Ok(Expr::If(Box::new(predicate), Box::new(then_branch), else_branch))
     }
 
+    fn not(&self, it: &mut PeekableToken) -> Result<Expr, String> {
+        match self.primitive(it) {
+            Ok(expr) => Ok(Expr::Not(Box::new(expr))),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn or(&self, it: &mut PeekableToken) -> Result<Expr, String> {
+        match self.build_expressions(it) {
+            Ok(exprs) => Ok(Expr::Or(exprs)),
+            Err(e) => Err(e),
+        }
+    }
+
     fn predicate(&self, it: &mut PeekableToken) -> Result<Expr, String> {
         debug!("predicate");
-        let test = match self.expression(it) {
+        let test = match self.primitive(it) {
             Ok(expr) => expr,
             Err(e) => return Err(e),
         };
@@ -196,8 +299,7 @@ impl Parser {
             Err(e) => return Err(e)
         };
 
-        // Consume the ')'.
-        if advance(it).is_err() {
+        if !consume(TokenType::Paren(')'), it) {
             return Err(format!("Expected ')' after predicate."));
         }
 
@@ -205,22 +307,13 @@ impl Parser {
     }
 
     fn function_call(&self, name: String, it: &mut PeekableToken) -> Result<Expr, String> {
-        debug!("function call: {}", name);
+        debug!("function call: \"{}\"", name);
         let args = match self.build_expressions(it) {
             Ok(args) => args,
             Err(e) => return Err(e)
         };
 
-        Ok(Expr::Expression(name, args))
-    }
-
-    fn definition(&self, it: &mut PeekableToken) -> Result<Expr, String> {
-        debug!("definition");
-        match advance(it) {
-            Ok(TokenType::Identifier(i)) => self.define_expression(&i, it),
-            Ok(TokenType::Paren('(')) => self.define_procedure(it),
-            t => return Err(format!("Expected name or '(' after define (found: {:?}).", t))
-        }
+        Ok(Expr::Expression(Box::new(Expr::Identifier(name)), args))
     }
 
     fn define_expression(&self, name: &str, it: &mut PeekableToken) -> Result<Expr, String> {
@@ -242,8 +335,7 @@ impl Parser {
                     _ => return Err(format!("Expected expression name."))
                 };
 
-                // Consume the ')'.
-                if advance(it).is_err() {
+                if !consume(TokenType::Paren(')'), it) {
                     return Err(format!("Expected ')' after expression."));
                 }
 
@@ -266,38 +358,21 @@ impl Parser {
             Ok(list) => list,
             Err(e) => return Err(e)
         };
+        debug!("params \"{:?}\"", params);
 
-        // Consume the ')'.
-        if advance(it).is_err() {
+        if !consume(TokenType::Paren(')'), it) {
             return Err(format!("Expected ')' after procedure parameters."));
         }
 
-        let expr = match self.expression(it) {
-            Ok(expr) => expr,
+        let body = match self.build_expressions(it) {
+            Ok(exprs) => exprs,
             Err(e) => return Err(e),
         };
+        debug!("body \"{:?}\"", body);
 
-        let procedure = Expr::Procedure(name.to_string(), params, Box::new(expr));
+        let procedure = Expr::Procedure(name.to_string(), params, body);
 
         Ok(Expr::Define(name.to_string(), Box::new(procedure)))
-    }
-
-    fn build_expressions(&self, it: &mut PeekableToken) -> Result<Vec<Expr>, String> {
-        let mut exprs: Vec<Expr> = Vec::new();
-
-        loop {
-            let token_type = peek(it);
-
-            match token_type {
-                TokenType::Paren(')') => break,
-                _ => match self.expression(it) {
-                    Ok(expr) => exprs.push(expr),
-                    Err(e) => return Err(e)
-                }
-            }
-        }
-
-        Ok(exprs)
     }
 }
 
@@ -308,10 +383,19 @@ fn report_error<T>(err: &str) -> Result<T, Error> {
 fn advance(it: &mut PeekableToken) -> Result<TokenType, String> {
     match it.next() {
         Some(token) => {
-            debug!("Token: {}", token.token_type);
+//            debug!("Token: {}", token.token_type);
             Ok(token.token_type.clone())
         }
         None => Err(format!("Token not found."))
+    }
+}
+
+fn consume(token_type: TokenType, it: &mut PeekableToken) -> bool {
+    debug!("Consuming: {}", token_type);
+
+    match it.next() {
+        Some(token) => token.token_type == token_type,
+        None => false
     }
 }
 
@@ -334,7 +418,14 @@ mod tests {
     #[test]
     fn parse_empty() {
         let parser = Parser::new();
-        assert_that!(parser.parse(vec ! []).is_err(), is(true));
+        assert_that!(parser.parse(vec![]).is_err(), is(true));
+    }
+
+    #[test]
+    fn parse_empty_list() {
+        let expr = parse("()").unwrap();
+
+        assert_that!(expr, equal_to(Expr::List(vec![Expr::Empty])));
     }
 
     #[test]
@@ -350,31 +441,54 @@ mod tests {
         assert_parse("true", Expr::List(vec![Expr::Bool(true)]));
         assert_parse("false", Expr::List(vec![Expr::Bool(false)]));
         assert_parse("+", Expr::List(vec![Expr::Identifier("+".to_string())]));
-    }
+        assert_parse("+ 1 true", Expr::List(vec![
+            Expr::Identifier("+".to_string()),
+            Expr::Number(1.0),
+            Expr::Bool(true)
+        ]));
 
-    #[test]
-    fn parse_empty_list() {
-        let expr = parse("()").unwrap();
-
-        assert_that!(expr, equal_to(Expr::List(vec ! [Expr::Empty])));
+        assert_parse("\
+                (define a (+ 1))\
+                (define b a)\
+                b",
+                     Expr::List(vec![
+                         Expr::Define("a".to_string(), Box::new(Expr::Expression(
+                             Box::new(Expr::Identifier("+".to_string())), vec![
+                                 Expr::Number(1.0)
+                             ]))),
+                         Expr::Define("b".to_string(), Box::new(Expr::Identifier("a".to_string()))),
+                         Expr::Identifier("b".to_string()),
+                     ]),
+        );
     }
 
     #[test]
     fn parse_expressions() {
-        assert_parse("(one)", Expr::List(vec![Expr::Expression("one".to_string(), vec![])]));
+        assert_parse("(one)", Expr::List(vec![Expr::Expression(Box::new(Expr::Identifier("one".to_string())), vec![])]));
 
-        assert_parse("(+ 1 2)", Expr::List(vec![Expr::Expression("+".to_string(), vec![
+        assert_parse("(+ 1 2)", Expr::List(vec![Expr::Expression(Box::new(Expr::Identifier("+".to_string())), vec![
             Expr::Number(1.0), Expr::Number(2.0)
         ])]));
 
         assert_parse("(and true false)", Expr::List(vec![Expr::And(vec![
             Expr::Bool(true), Expr::Bool(false)
         ])]));
+
         assert_parse("(or true false)", Expr::List(vec![Expr::Or(vec![
             Expr::Bool(true), Expr::Bool(false)
         ])]));
+
         assert_parse("(not true)", Expr::List(vec![Expr::Not(
             Box::new(Expr::Bool(true))
+        )]));
+
+        assert_parse("(if true +)", Expr::List(vec![
+            Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Identifier("+".to_string())), None)
+        ]));
+
+        assert_parse("((if true +) 1)", Expr::List(vec![Expr::Expression(
+            Box::new(Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Identifier("+".to_string())), None)),
+            vec![Expr::Number(1.0)],
         )]));
     }
 
@@ -409,8 +523,6 @@ mod tests {
 
     #[test]
     fn parse_ifs() {
-//        env_logger::init();
-
         assert_parse("(if true 1)",
                      Expr::List(vec![
                          Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Number(1.0)), None)
@@ -420,6 +532,11 @@ mod tests {
                      Expr::List(vec![
                          Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Number(1.0)), Some(Box::new(Expr::Number(2.0))))
                      ]));
+
+        assert_parse("(if true +)",
+                     Expr::List(vec![
+                         Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Identifier("+".to_string())), None)
+                     ]));
     }
 
     #[test]
@@ -427,9 +544,10 @@ mod tests {
         assert_parse("(define a 1)", Expr::List(vec![Expr::Define("a".to_string(), Box::new(Expr::Number(1.0)))]));
         assert_parse("(define a b)", Expr::List(vec![Expr::Define("a".to_string(), Box::new(Expr::Identifier("b".to_string())))]));
         assert_parse("(define a (+ 1))", Expr::List(vec![
-            Expr::Define("a".to_string(), Box::new(Expr::Expression("+".to_string(), vec![
-                Expr::Number(1.0)
-            ])))]));
+            Expr::Define("a".to_string(), Box::new(Expr::Expression(
+                Box::new(Expr::Identifier("+".to_string())), vec![
+                    Expr::Number(1.0)
+                ])))]));
         assert_parse("(define (one) 1)",
                      Expr::List(vec![
                          Expr::Define(
@@ -437,7 +555,7 @@ mod tests {
                              Box::new(Expr::Procedure(
                                  "one".to_string(),
                                  vec![],
-                                 Box::new(Expr::Number(1.0)),
+                                 vec![Expr::Number(1.0)],
                              )),
                          )
                      ]),
@@ -449,10 +567,30 @@ mod tests {
                              Box::new(Expr::Procedure(
                                  "square".to_string(),
                                  vec![Expr::Identifier("x".to_string())],
-                                 Box::new(Expr::Expression(
-                                     "*".to_string(),
+                                 vec![Expr::Expression(
+                                     Box::new(Expr::Identifier("*".to_string())),
                                      vec![Expr::Identifier("x".to_string()), Expr::Identifier("x".to_string())],
-                                 )),
+                                 )],
+                             )),
+                         )
+                     ]),
+        );
+        assert_parse("(define (a) ((if true +) 1))",
+                     Expr::List(vec![
+                         Expr::Define(
+                             "a".to_string(),
+                             Box::new(Expr::Procedure(
+                                 "a".to_string(),
+                                 vec![],
+                                 vec![
+                                     Expr::Expression(Box::new(
+                                         Expr::If(Box::new(Expr::Bool(true)),
+                                                  Box::new(Expr::Identifier("+".to_string())),
+                                                  None)
+                                     ),
+                                                      vec![Expr::Number(1.0)],
+                                     )
+                                 ],
                              )),
                          )
                      ]),
@@ -467,8 +605,10 @@ mod tests {
     }
 
     fn parse(source: &str) -> Result<Expr, Error> {
+        debug!("Parsing: \"{}\"", source);
         let lexer = Lexer::new();
         let tokens = lexer.lex(source).unwrap();
+        debug!("Tokens: \"{:#?}\"", tokens);
         let parser = Parser::new();
 
         parser.parse(tokens)

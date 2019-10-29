@@ -1,8 +1,6 @@
-use std::ops::Deref;
-
 use crate::environment::Environment;
-use crate::expr::Expr;
 use crate::error::Error;
+use crate::expr::Expr;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Evaluator {}
@@ -24,16 +22,37 @@ impl Evaluator {
             Expr::And(exprs) => self.eval_and(exprs, env),
             Expr::Bool(_) => Ok(expr.clone()),
             Expr::Cond(predicate_branches, else_branch) => self.eval_cond(predicate_branches, else_branch, env),
-            Expr::If(predicate, then_branch, else_branch) => self.eval_if(predicate, then_branch, else_branch, env),
             Expr::Define(name, expr) => self.eval_definition(name, expr, env),
             Expr::Empty => Ok(expr.clone()),
-            Expr::Expression(name, args) => self.eval_function_call(name, args, env),
+            Expr::Expression(expr, args) => self.eval_expression(expr, args, env),
+            Expr::Function(_, _) => Ok(expr.clone()),
             Expr::Identifier(s) => self.eval_identifier(s, env),
+            Expr::If(predicate, then_branch, else_branch) => self.eval_if(predicate, then_branch, else_branch, env),
+            Expr::List(list) => self.eval_list(list, env),
             Expr::Not(expr) => self.eval_not(expr, env),
             Expr::Number(_) => Ok(expr.clone()),
+            Expr::Procedure(_, _, _) => Ok(expr.clone()),
             Expr::Or(exprs) => self.eval_or(exprs, env),
-            Expr::List(list) => self.eval_list(list, env),
             e => panic!("Unmapped expression: {}", e)
+        }
+    }
+
+    fn eval_expression(&self, expr: &Box<Expr>, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        let expr = expr.as_ref();
+
+        let name = match expr {
+            Expr::Identifier(_) => Ok(expr.clone()),
+            _ => self.eval(expr, env)
+        };
+
+        let name = match name {
+            Ok(expr) => expr,
+            Err(e) => return Err(e),
+        };
+
+        match self.eval_function_call(name.to_string(), args, env) {
+            Ok(expr) => Ok(expr),
+            Err(e) => Err(e)
         }
     }
 
@@ -103,6 +122,7 @@ impl Evaluator {
 
     fn eval_list(&self, exprs: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
         let mut res = Expr::Empty;
+
         for expr in exprs {
             res = match self.eval(expr, env) {
                 Ok(expr) => expr,
@@ -124,12 +144,12 @@ impl Evaluator {
         }
     }
 
-    fn eval_function_call(&self, name: &String, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
-        let res = env.get(name.as_str());
+    fn eval_function_call(&self, name: String, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        let res = env.get(&name.to_string());
 
         let expr = match res {
             Ok(expr) => expr,
-            _ => return Err(format!("Undefined procedure: \"{}\".", name))
+            _ => return Err(format!("Undefined procedure1: \"{}\".", name))
         };
 
         let expr = expr.clone();
@@ -137,11 +157,22 @@ impl Evaluator {
         match expr {
             Expr::Function(_, f) => self.eval_function(f, args, env),
             Expr::Procedure(_, params, body) => self.eval_procedure(args, params, body, env),
-            _ => Err(format!("Undefined procedure: \"{}\".", name))
+            _ => Err(format!("Undefined procedure2: \"{}\".", expr))
         }
     }
 
-    fn eval_procedure(&self, args: &Vec<Expr>, params: Vec<Expr>, body: Box<Expr>, env: &mut Environment) -> Result<Expr, String> {
+    fn eval_function(&self, f: fn(Vec<Expr>) -> Result<Expr, String>, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        let mut evaluated_args = Vec::new();
+        for arg in args {
+            match self.eval(&arg, env) {
+                Ok(e) => evaluated_args.push(e),
+                Err(e) => return Err(e),
+            }
+        }
+        f(evaluated_args)
+    }
+
+    fn eval_procedure(&self, args: &Vec<Expr>, params: Vec<Expr>, body: Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
         let parent = env.clone();
         let mut enclosing = Environment::new(Some(&parent));
 
@@ -167,18 +198,15 @@ impl Evaluator {
             }
         }
 
-        self.eval(body.deref(), &mut enclosing)
-    }
+        let mut res = Expr::Empty;
 
-    fn eval_function(&self, f: fn(Vec<Expr>) -> Result<Expr, String>, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
-        let mut evald_args = Vec::new();
-        for arg in args {
-            match self.eval(&arg, env) {
-                Ok(e) => evald_args.push(e),
-                Err(e) => return Err(e),
+        for expr in body {
+            res = match self.eval(&expr, &mut enclosing) {
+                Ok(res) => res,
+                Err(e) => return Err(e)
             }
         }
-        f(evald_args)
+        Ok(res)
     }
 }
 
@@ -196,19 +224,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn eval_booleans() {
+    fn eval_primitives() {
         assert_eval("true", Expr::Bool(true));
         assert_eval("false", Expr::Bool(false));
-    }
-
-    #[test]
-    fn eval_numbers() {
         assert_eval("486", Expr::Number(486.0));
     }
 
     #[test]
-    fn eval_identifier() {
-//        assert_eval(Expr::Identifier("+".to_string()), Expr::Func("+".to_string()));
+    fn eval_identifiers() {
+        let mut globals = Environment::global();
+        let res = eval("+", &mut globals);
+        assert_that!(&res.unwrap(), equal_to(globals.get("+").unwrap()));
     }
 
     #[test]
@@ -253,7 +279,7 @@ mod tests {
 
         assert_definition("(define plus_one (+ 1))",
                           Expr::Identifier("plus_one".to_string()),
-                          Expr::Expression("+".to_string(), vec![Expr::Number(1.0)]),
+                          Expr::Expression(Box::new(Expr::Identifier("+".to_string())), vec![Expr::Number(1.0)]),
         );
 
         assert_definition("(define (square x) (* x x))",
@@ -261,10 +287,10 @@ mod tests {
                           Expr::Procedure(
                               "square".to_string(),
                               vec![Expr::Identifier("x".to_string())],
-                              Box::new(Expr::Expression("*".to_string(), vec![
+                              vec![(Expr::Expression(Box::new(Expr::Identifier("*".to_string())), vec![
                                   Expr::Identifier("x".to_string()),
                                   Expr::Identifier("x".to_string())
-                              ])),
+                              ]))],
                           ),
         );
     }
@@ -276,6 +302,13 @@ mod tests {
                     (define b a)\
                     b",
                     Expr::Number(1.0),
+        );
+        assert_eval("\
+                    (define (a) (+ 1))\
+                    a",
+                    Expr::Procedure("a".to_string(), vec![], vec![
+                        Expr::Expression(Box::new(Expr::Identifier("+".to_string())), vec![Expr::Number(1.0)])
+                    ]),
         );
     }
 
