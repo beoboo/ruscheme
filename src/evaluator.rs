@@ -18,6 +18,10 @@ impl Evaluator {
     }
 
     fn eval(&self, expr: &Expr, env: &mut Environment) -> Result<Expr, String> {
+//        println!("eval: {}", expr);
+//        println!("eval {}: {:?}", expr, expr);
+
+//        let res= match expr {
         match expr {
             Expr::And(exprs) => self.eval_and(exprs, env),
             Expr::Bool(_) => Ok(expr.clone()),
@@ -34,7 +38,13 @@ impl Evaluator {
             Expr::Procedure(_, _, _) => Ok(expr.clone()),
             Expr::Or(exprs) => self.eval_or(exprs, env),
             e => panic!("Unmapped expression: {}", e)
+//        };
         }
+
+//        let r2 = res.clone();
+
+//        println!("res: {:?}", res);
+//        r2
     }
 
     fn eval_expression(&self, expr: &Box<Expr>, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
@@ -95,6 +105,7 @@ impl Evaluator {
                 Expr::Predicate(predicate, exprs) => {
                     match self.eval(predicate, env) {
                         Ok(Expr::Bool(true)) => return self.eval_list(exprs, env),
+                        Err(e) => return Err(e),
                         _ => {}
                     }
                 }
@@ -113,6 +124,7 @@ impl Evaluator {
     fn eval_if(&self, predicate: &Box<Expr>, then_branch: &Box<Expr>, else_branch: &Option<Box<Expr>>, env: &mut Environment) -> Result<Expr, String> {
         match self.eval(predicate, env) {
             Ok(Expr::Bool(true)) => self.eval(then_branch.as_ref(), env),
+            Err(e) => return Err(e),
             _ => match else_branch {
                 Some(e) => self.eval(e, env),
                 _ => Ok(Expr::Empty)
@@ -149,7 +161,7 @@ impl Evaluator {
 
         let expr = match res {
             Ok(expr) => expr,
-            _ => return Err(format!("Undefined procedure1: \"{}\".", name))
+            _ => return Err(format!("Undefined procedure: \"{}\".", name))
         };
 
         let expr = expr.clone();
@@ -157,7 +169,7 @@ impl Evaluator {
         match expr {
             Expr::Function(_, f) => self.eval_function(f, args, env),
             Expr::Procedure(_, params, body) => self.eval_procedure(args, params, body, env),
-            _ => Err(format!("Undefined procedure2: \"{}\".", expr))
+            _ => Err(format!("Cannot execute: \"{}\".", expr))
         }
     }
 
@@ -191,9 +203,7 @@ impl Evaluator {
             };
 
             match self.eval(&arg, env) {
-                Ok(e) => {
-                    enclosing.define(&param.to_string(), e)
-                }
+                Ok(e) => enclosing.define(&param.to_string(), e),
                 Err(e) => return Err(e),
             }
         }
