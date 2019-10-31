@@ -168,7 +168,7 @@ impl Evaluator {
 
         match expr {
             Expr::Function(_, f) => self.eval_function(f, args, env),
-            Expr::Procedure(_, params, body) => self.eval_procedure(args, params, body, env),
+            Expr::Procedure(_, params, body) => self.eval_procedure(name, args, params, body, env),
             _ => Err(format!("Cannot execute: \"{}\".", expr))
         }
     }
@@ -184,13 +184,14 @@ impl Evaluator {
         f(evaluated_args)
     }
 
-    fn eval_procedure(&self, args: &Vec<Expr>, params: Vec<Expr>, body: Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+    fn eval_procedure(&self, name: String, args: &Vec<Expr>, params: Vec<Expr>, body: Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
         let parent = env.clone();
         let mut enclosing = Environment::new(Some(&parent));
 
         if params.len() != args.len() {
             return Err(format!(
-                "Wrong number of arguments (required: {}, given: {}).",
+                "\"{}\": wrong number of arguments (required: {}, given: {}).",
+                name,
                 params.len(),
                 args.len()
             ));
@@ -249,19 +250,6 @@ mod tests {
 
     #[test]
     fn eval_expressions() {
-        assert_eval("(= 1 2)", Expr::Bool(false));
-        assert_eval("(< 1 2)", Expr::Bool(true));
-        assert_eval("(> 1 2)", Expr::Bool(false));
-        assert_eval("(<= 1 2)", Expr::Bool(true));
-        assert_eval("(>= 1 2)", Expr::Bool(false));
-        assert_eval("(+ 137 349)", Expr::Number(486.0));
-        assert_eval("(- 1000)", Expr::Number(-1000.0));
-        assert_eval("(- 1000 334)", Expr::Number(666.0));
-        assert_eval("(* 5 99)", Expr::Number(495.0));
-        assert_eval("(/ 10 5)", Expr::Number(2.0));
-        assert_eval("(+ 2.7 10)", Expr::Number(12.7));
-        assert_eval("(+ 1)", Expr::Number(1.0));
-        assert_eval("(+1)", Expr::Number(1.0));
         assert_eval("(and true (< 1 2))", Expr::Bool(true));
         assert_eval("(or false (> 1 2))", Expr::Bool(false));
         assert_eval("(not true)", Expr::Bool(false));
@@ -276,8 +264,8 @@ mod tests {
         assert_invalid("(-)", "At least 1 argument required.".to_string());
         assert_invalid("(*)", "At least 1 argument required.".to_string());
         assert_invalid("(/)", "At least 2 arguments required.".to_string());
-        assert_invalid("(define (a x) x)(a)", "Wrong number of arguments (required: 1, given: 0).".to_string());
-        assert_invalid("(define (a x) x)(a 1 2)", "Wrong number of arguments (required: 1, given: 2).".to_string());
+        assert_invalid("(define (a x) x)(a)", "\"a\": wrong number of arguments (required: 1, given: 0).".to_string());
+        assert_invalid("(define (a x) x)(a 1 2)", "\"a\": wrong number of arguments (required: 1, given: 2).".to_string());
     }
 
     #[test]

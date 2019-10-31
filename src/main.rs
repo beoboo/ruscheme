@@ -3,13 +3,9 @@
 extern crate hamcrest2;
 
 use std::{env, fs, io};
-use std::io::{stdin, stdout, Write};
-use std::io::prelude::*;
+use std::io::Write;
 
 use colored::*;
-use termion::event::Key;
-use termion::input::TermRead;
-use termion::raw::IntoRawMode;
 
 use crate::environment::Environment;
 use crate::error::Error;
@@ -26,23 +22,6 @@ mod parser;
 mod token;
 
 fn main() {
-//    let stdout = stdout();
-//    let mut stdout = stdout.lock().into_raw_mode().unwrap();
-//    let stdin = stdin();
-//    let stdin = stdin.lock();
-//    let mut bytes = stdin.bytes();
-//    loop {
-//        let b = bytes.next().unwrap().unwrap();
-//
-//        match b {
-//            // Quit
-//            b'q' => return,
-//            // Write it to stdout.
-//            a => write!(stdout, "{:?}", String::from_utf8(vec![a]).unwrap()).unwrap(),
-//        };
-//
-//        stdout.flush().unwrap();
-//    }
     let args: Vec<String> = env::args().collect();
     if args.len() == 1 {
         repl();
@@ -55,8 +34,9 @@ fn repl() {
     let mut globals = Environment::global();
     let mut source = String::new();
 
+    let mut prompt = "> ";
     loop {
-        print!("> ");
+        print!("{}", prompt);
         io::stdout().flush().unwrap();
 
         let mut line = String::new();
@@ -66,14 +46,21 @@ fn repl() {
 
             match run(&source, &mut globals) {
                 Err(e) => {
-                    eprintln!("{}", format!("{}", e).red());
-
                     match e {
-                        Error::Parser(_) => {}
-                        _ => source = String::new(),
+                        Error::UnterminatedInput => {
+                            println!();
+                            prompt = "| ";
+                        }
+                        _ => {
+                            eprintln!("{}", format!("{}", e).red());
+                            source = String::new();
+                            prompt = "> ";
+                        },
                     }
                 }
-                _ => {}
+                _ => {
+                    prompt = "> ";
+                }
             };
         }
     }
@@ -107,6 +94,11 @@ fn run(source: &str, globals: &mut Environment) -> Result<(), Error> {
 //        println!("- {:?}", token);
 //    }
 //    println!();
+
+    // Handle EOF.
+    if tokens.len() == 1 {
+        return Ok(());
+    }
 
     let parser: Parser = Parser::new();
     let res = parser.parse(tokens);

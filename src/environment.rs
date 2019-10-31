@@ -46,73 +46,17 @@ impl Environment<'_> {
 
     pub fn global<'a>() -> Environment<'a> {
         let mut environment = Environment::new(None);
-        environment.define_func("+", |args: Vec<Expr>| -> Result<Expr, String> {
-            if args.len() == 0 {
-                return Err(format!("At least 1 argument required."));
-            }
-
-            match parse_floats(args) {
-                Ok(nums) => Ok(Expr::Number(nums.iter().sum())),
-                Err(e) => Err(e)
-            }
-        });
-
-        environment.define_func("-", |args: Vec<Expr>| -> Result<Expr, String> {
-            if args.len() == 0 {
-                return Err(format!("At least 1 argument required."));
-            }
-
-            let floats = match parse_floats(args) {
-                Ok(nums) => nums,
-                Err(e) => return Err(e)
-            };
-
-            let (first, rest) = floats.split_first().unwrap();
-            let first = *first;
-
-            if floats.len() == 1 {
-                return Ok(Expr::Number(-first));
-            }
-
-            let res = rest.iter().fold(first, |sum, a| sum - *a);
-
-            Ok(Expr::Number(res))
-        });
-
-        environment.define_func("*", |args: Vec<Expr>| -> Result<Expr, String> {
-            if args.len() == 0 {
-                return Err(format!("At least 1 argument required."));
-            }
-
-            match parse_floats(args) {
-                Ok(nums) => Ok(Expr::Number(nums.iter().fold(1.0, |sum, a| sum * *a))),
-                Err(e) => Err(e)
-            }
-        });
-
-        environment.define_func("/", |args: Vec<Expr>| -> Result<Expr, String> {
-            if args.len() < 2 {
-                return Err(format!("At least 2 arguments required."));
-            }
-
-            let floats = match parse_floats(args) {
-                Ok(nums) => nums,
-                Err(e) => return Err(e)
-            };
-
-            let (first, rest) = floats.split_first().unwrap();
-            let first = *first;
-
-            let res = rest.iter().fold(first, |sum, a| sum / *a);
-
-            Ok(Expr::Number(res))
-        });
-
+        environment.define_func("+", add());
+        environment.define_func("-", sub());
+        environment.define_func("*", mul());
+        environment.define_func("/", div());
         environment.define_func("=", compare_floats!(|a, b| a == b));
         environment.define_func("<", compare_floats!(|a, b| a < b));
         environment.define_func(">", compare_floats!(|a, b| a > b));
         environment.define_func("<=", compare_floats!(|a, b| a <= b));
         environment.define_func(">=", compare_floats!(|a, b| a >= b));
+        environment.define_func("remainder", remainder());
+//        environment.define_func("random", random());
 
         environment
     }
@@ -139,6 +83,100 @@ impl Environment<'_> {
     }
 }
 
+
+fn add() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() == 0 {
+            return Err(format!("At least 1 argument required."));
+        }
+
+        match parse_floats(args) {
+            Ok(nums) => Ok(Expr::Number(nums.iter().sum())),
+            Err(e) => Err(e)
+        }
+    }
+}
+
+
+fn sub() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() == 0 {
+            return Err(format!("At least 1 argument required."));
+        }
+
+        let floats = match parse_floats(args) {
+            Ok(nums) => nums,
+            Err(e) => return Err(e)
+        };
+
+        let (first, rest) = floats.split_first().unwrap();
+        let first = *first;
+
+        if floats.len() == 1 {
+            return Ok(Expr::Number(-first));
+        }
+
+        let res = rest.iter().fold(first, |sum, a| sum - *a);
+
+        Ok(Expr::Number(res))
+    }
+}
+
+fn mul() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() == 0 {
+            return Err(format!("At least 1 argument required."));
+        }
+
+        match parse_floats(args) {
+            Ok(nums) => Ok(Expr::Number(nums.iter().fold(1.0, |sum, a| sum * *a))),
+            Err(e) => Err(e)
+        }
+    }
+}
+
+fn div() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() < 2 {
+            return Err(format!("At least 2 arguments required."));
+        }
+
+        let floats = match parse_floats(args) {
+            Ok(nums) => nums,
+            Err(e) => return Err(e)
+        };
+
+        let (first, rest) = floats.split_first().unwrap();
+        let first = *first;
+
+        let res = rest.iter().fold(first, |sum, a| sum / *a);
+
+        Ok(Expr::Number(res))
+    }
+}
+
+fn remainder() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() != 2 {
+            return Err(format!("Exactly 2 arguments required."));
+        }
+
+        let floats = match parse_floats(args) {
+            Ok(nums) => nums,
+            Err(e) => return Err(e)
+        };
+
+        let a = floats[0];
+        let b = floats[1];
+        if b == 0.0 {
+            return Err(format!("Division by zero."));
+        }
+
+        Ok(Expr::Number(a % b))
+    }
+}
+
+
 fn parse_floats(args: Vec<Expr>) -> Result<Vec<f64>, String> {
     let mut floats = Vec::new();
 
@@ -157,6 +195,10 @@ mod tests {
     use hamcrest2::prelude::*;
 
     use super::*;
+    use crate::lexer::Lexer;
+    use crate::parser::Parser;
+    use crate::evaluator::Evaluator;
+    use crate::error::Error;
 
     #[test]
     fn check_empty() {
@@ -167,7 +209,7 @@ mod tests {
     #[test]
     fn check_globals() {
         let environment = Environment::global();
-        assert_that!(environment.keys.len(), equal_to(9));
+        assert_that!(environment.keys.len(), equal_to(10));
     }
 
     #[test]
@@ -196,4 +238,81 @@ mod tests {
         let environment2 = Environment::new(Some(&environment1));
         assert_that!(environment2.get("a").unwrap(), equal_to(& Expr::Number(123.0)));
     }
+
+    #[test]
+    fn test_functions() {
+        assert_eval("(+ 1 2)", Expr::Number(3.0));
+        assert_eval("(= 1 2)", Expr::Bool(false));
+        assert_eval("(< 1 2)", Expr::Bool(true));
+        assert_eval("(> 1 2)", Expr::Bool(false));
+        assert_eval("(<= 1 2)", Expr::Bool(true));
+        assert_eval("(>= 1 2)", Expr::Bool(false));
+        assert_eval("(+ 137 349)", Expr::Number(486.0));
+        assert_eval("(- 1000)", Expr::Number(-1000.0));
+        assert_eval("(- 1000 334)", Expr::Number(666.0));
+        assert_eval("(* 5 99)", Expr::Number(495.0));
+        assert_eval("(/ 10 5)", Expr::Number(2.0));
+        assert_eval("(+ 2.7 10)", Expr::Number(12.7));
+        assert_eval("(+ 1)", Expr::Number(1.0));
+        assert_eval("(+1)", Expr::Number(1.0));
+        assert_eval("(remainder 0 2)", Expr::Number(0.0));
+        assert_eval("(remainder 1 2)", Expr::Number(1.0));
+        assert_eval("(remainder (+ 1) 2)", Expr::Number(1.0));
+    }
+
+    #[test]
+    fn test_invalid() {
+        assert_invalid("(+)", "At least 1 argument required.".to_string());
+        assert_invalid("(-)", "At least 1 argument required.".to_string());
+        assert_invalid("(*)", "At least 1 argument required.".to_string());
+        assert_invalid("(/)", "At least 2 arguments required.".to_string());
+        assert_invalid("(/ 1)", "At least 2 arguments required.".to_string());
+        assert_invalid("(remainder 0)", "Exactly 2 arguments required.".to_string());
+        assert_invalid("(remainder 1)", "Exactly 2 arguments required.".to_string());
+        assert_invalid("(remainder 1 2 3)", "Exactly 2 arguments required.".to_string());
+        assert_invalid("(remainder 1 0)", "Division by zero.".to_string());
+    }
+
+
+    fn assert_eval(expr: &str, expected: Expr) {
+        let mut globals = Environment::global();
+        let res = eval(expr, &mut globals);
+
+        assert_that!(res.unwrap(), equal_to(expected));
+    }
+
+    fn assert_invalid(expr: &str, err: String) {
+        let mut globals = Environment::global();
+        let res = eval(expr, &mut globals);
+
+        assert_that!(res.err().unwrap().to_string(), equal_to(err));
+    }
+
+    fn eval(source: &str, globals: &mut Environment) -> Result<Expr, Error> {
+        let lexer = Lexer::new();
+        let parser = Parser::new();
+        let evaluator = Evaluator::new();
+
+        let tokens = match lexer.lex(source) {
+            Ok(tokens) => tokens,
+            Err(e) => return Err(e)
+        };
+
+        let expr = match parser.parse(tokens) {
+            Ok(e) => e,
+            Err(e) => return Err(e)
+        };
+
+        let res = match evaluator.evaluate(&expr, globals) {
+            Ok(expr) => Some(expr),
+            Err(e) => return Err(e)
+        };
+
+        match res {
+            Some(result) => Ok(result),
+            None => Err(Error::Evaluator(format!("No expressions to eval.")))
+        }
+    }
+
 }
+

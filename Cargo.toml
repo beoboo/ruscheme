@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 colored = "*"
 log = "*"
-termion = "*"
+crossterm = "*"
 
 [dev-dependencies]
 hamcrest2 = "*"
