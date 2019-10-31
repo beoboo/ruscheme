@@ -152,7 +152,7 @@ impl Evaluator {
             Ok(expr) => {
                 self.eval(&expr.clone(), env)
             }
-            _ => Err(format!("Undefined identifier: \"{}\".", s))
+            _ => Err(format!("Undefined identifier: '{}'.", s))
         }
     }
 
@@ -161,7 +161,7 @@ impl Evaluator {
 
         let expr = match res {
             Ok(expr) => expr,
-            _ => return Err(format!("Undefined procedure: \"{}\".", name))
+            _ => return Err(format!("Undefined procedure: '{}'.", name))
         };
 
         let expr = expr.clone();
@@ -169,7 +169,7 @@ impl Evaluator {
         match expr {
             Expr::Function(_, f) => self.eval_function(f, args, env),
             Expr::Procedure(_, params, body) => self.eval_procedure(name, args, params, body, env),
-            _ => Err(format!("Cannot execute: \"{}\".", expr))
+            _ => Err(format!("Cannot execute: '{}'.", expr))
         }
     }
 
@@ -190,7 +190,7 @@ impl Evaluator {
 
         if params.len() != args.len() {
             return Err(format!(
-                "\"{}\": wrong number of arguments (required: {}, given: {}).",
+                "'{}': wrong number of arguments (required: {}, given: {}).",
                 name,
                 params.len(),
                 args.len()
@@ -257,15 +257,15 @@ mod tests {
 
     #[test]
     fn eval_invalid() {
-        assert_invalid("define a 2", "\"define\" cannot be used outside expressions.".to_string());
-        assert_invalid("u", "Undefined identifier: \"u\".".to_string());
-        assert_invalid("(123)", "\"123\" is not callable.".to_string());
+        assert_invalid("define a 2", "'define' cannot be used outside expressions.".to_string());
+        assert_invalid("u", "Undefined identifier: 'u'.".to_string());
+        assert_invalid("(123)", "'123' is not callable.".to_string());
         assert_invalid("(+)", "At least 1 argument required.".to_string());
         assert_invalid("(-)", "At least 1 argument required.".to_string());
         assert_invalid("(*)", "At least 1 argument required.".to_string());
         assert_invalid("(/)", "At least 2 arguments required.".to_string());
-        assert_invalid("(define (a x) x)(a)", "\"a\": wrong number of arguments (required: 1, given: 0).".to_string());
-        assert_invalid("(define (a x) x)(a 1 2)", "\"a\": wrong number of arguments (required: 1, given: 2).".to_string());
+        assert_invalid("(define (a x) x)(a)", "'a': wrong number of arguments (required: 1, given: 0).".to_string());
+        assert_invalid("(define (a x) x)(a 1 2)", "'a': wrong number of arguments (required: 1, given: 2).".to_string());
     }
 
     #[test]

@@ -62,19 +62,19 @@ impl Parser {
             Err(e) => return report_error(e)
         };
 
-        debug!("primitive \"{}\"", &token_type);
+        debug!("primitive '{}'", &token_type);
         let t2 = token_type.clone();
         let res = match token_type {
 //            TokenType::Paren(')') => Ok(Expr::Empty),
             TokenType::Bool(b) => Ok(Expr::Bool(b)),
             TokenType::Identifier(i) => Ok(Expr::Identifier(i)),
             TokenType::Number(n) => Ok(Expr::Number(n)),
-            TokenType::Define => report_error("\"define\" cannot be used outside expressions."),
+            TokenType::Define => report_error("'define' cannot be used outside expressions."),
             TokenType::Paren('(') => self.expression(it),
             TokenType::EOF => Err(UnterminatedInput),
-            t => report_error(format!("Undefined token type: \"{}\".", t))
+            t => report_error(format!("Undefined token type: '{}'.", t))
         };
-        debug!("end primitive \"{}\"", t2);
+        debug!("end primitive '{}'", t2);
 
         res
     }
@@ -106,7 +106,7 @@ impl Parser {
             Err(e) => return report_error(e)
         };
 
-        debug!("expression: \"{}\"", token_type);
+        debug!("expression: '{}'", token_type);
         let t2 = token_type.clone();
 
         let res = match token_type {
@@ -120,7 +120,7 @@ impl Parser {
             TokenType::Paren(')') => return Ok(Expr::Empty),
             TokenType::Paren('(') => self.expression(it),
             TokenType::EOF => Err(Error::UnterminatedInput),
-            t => report_error(format!("\"{}\" is not callable.", t)),
+            t => report_error(format!("'{}' is not callable.", t)),
         };
 
         let expr = match res {
@@ -143,7 +143,7 @@ impl Parser {
                 }
             }
         }
-        debug!("end expression: \"{}\"", t2);
+        debug!("end expression: '{}'", t2);
 
         consume(TokenType::Paren(')'), it, format!("Expected ')' after expression."))?;
 
@@ -151,7 +151,7 @@ impl Parser {
     }
 
     fn form(&self, token_type: TokenType, it: &mut PeekableToken) -> Result<Expr, Error> {
-        debug!("form \"{}\"", token_type);
+        debug!("form '{}'", token_type);
 
         let res = match token_type.clone() {
             TokenType::And => self.and(it),
@@ -161,16 +161,16 @@ impl Parser {
             TokenType::Identifier(i) => self.function_call(i, it),
             TokenType::Not => self.not(it),
             TokenType::Or => self.or(it),
-            t => return report_error(format!("Undefined form \"{}\".", t))
+            t => return report_error(format!("Undefined form '{}'.", t))
         };
 
         if res.is_err() {
             return res;
         }
 
-        consume(TokenType::Paren(')'), it, format!("Expected ')' after \"{}\" form.", token_type))?;
+        consume(TokenType::Paren(')'), it, format!("Expected ')' after '{}' form.", token_type))?;
 
-        debug!("end form \"{}\"", token_type);
+        debug!("end form '{}'", token_type);
 
         res
     }
@@ -218,8 +218,12 @@ impl Parser {
                     };
                 }
                 TokenType::Paren(')') => break,
-                _ => return report_error(format!("Expected ')' after cond."))
+                _ => return report_error("Expected ')' after cond.")
             };
+        }
+
+        if predicate_branches.len() == 0 && else_branch.len() == 0 {
+            return report_error("'cond' must have at least one clause.");
         }
 
         debug!("Predicates {:?}", predicate_branches);
@@ -300,7 +304,7 @@ impl Parser {
     }
 
     fn function_call(&self, name: String, it: &mut PeekableToken) -> Result<Expr, Error> {
-        debug!("function call: \"{}\"", name);
+        debug!("function call: '{}'", name);
         let args = match self.build_expressions(it) {
             Ok(args) => args,
             Err(e) => return Err(e)
@@ -343,13 +347,13 @@ impl Parser {
             Ok(TokenType::Identifier(i)) => Expr::Identifier(i),
             _ => return report_error(format!("Expected procedure name."))
         };
-        debug!("procedure \"{}\"", name);
+        debug!("procedure '{}'", name);
 
         let params = match self.build_expressions(it) {
             Ok(list) => list,
             Err(e) => return Err(e)
         };
-        debug!("params \"{:?}\"", params);
+        debug!("params '{:?}'", params);
 
         consume(TokenType::Paren(')'), it, format!("Expected ')' after procedure parameters."))?;
 
@@ -357,7 +361,7 @@ impl Parser {
             Ok(exprs) => exprs,
             Err(e) => return Err(e),
         };
-        debug!("body \"{:?}\"", body);
+        debug!("body '{:?}'", body);
 
         let procedure = Expr::Procedure(name.to_string(), params, body);
 
@@ -437,9 +441,10 @@ mod tests {
 
     #[test]
     fn parse_invalid() {
-        assert_invalid("define", "\"define\" cannot be used outside expressions.");
-        assert_invalid("(1)", "\"1\" is not callable.");
+        assert_invalid("define", "'define' cannot be used outside expressions.");
+        assert_invalid("(1)", "'1' is not callable.");
         assert_invalid("(cond (else 1)(true 2))", "Misplaced 'else' clause.");
+        assert_invalid("(cond)", "'cond' must have at least one clause.");
     }
 
     #[test]
@@ -613,10 +618,10 @@ mod tests {
     }
 
     fn parse(source: &str) -> Result<Expr, Error> {
-        debug!("Parsing: \"{}\"", source);
+        debug!("Parsing: '{}'", source);
         let lexer = Lexer::new();
         let tokens = lexer.lex(source).unwrap();
-        debug!("Tokens: \"{:#?}\"", tokens);
+        debug!("Tokens: '{:#?}'", tokens);
         let parser = Parser::new();
 
         parser.parse(tokens)
