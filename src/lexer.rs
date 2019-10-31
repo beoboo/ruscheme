@@ -1,10 +1,13 @@
 use std::iter::Peekable;
+use std::str::Chars;
 
-use crate::token::*;
 use crate::error::Error;
+use crate::token::*;
 
 #[derive(Debug)]
 pub struct Lexer {}
+
+type PeekableChar<'a> = Peekable<Chars<'a>>;
 
 impl Lexer {
     pub fn new() -> Lexer {
@@ -17,21 +20,15 @@ impl Lexer {
         let mut line = 1;
 
         while let Some(&c) = it.peek() {
-            let token_type = match c {
-                '0'..='9' => {
-                    number(&mut it)
-                }
-                '+' | '-' | '*' | '/' | '=' | '<' | '>' => {
-                    symbol(&mut it)
-                }
-                '(' | ')' => {
-                    it.next();
-                    TokenType::Paren(c)
-                }
+            let res = match c {
+                '0'..='9' => number(&mut it),
+                '+' | '-' | '*' | '/' | '=' | '<' | '>' => symbol(&mut it),
+                '(' | ')' => paren(c, &mut it),
                 ' ' | '\t' => {
                     it.next();
                     continue;
                 }
+                '"' => string(&mut it),
                 '\n' => {
                     line += 1;
                     it.next();
@@ -40,34 +37,35 @@ impl Lexer {
                 _ => {
                     if is_alphanum(peek(&mut it)) {
                         identifier(&mut it)
-                    }
-                    else {
-                        return Err(Error::Lexer(format!("Invalid token: \"{}\"", advance(&mut it))));
+                    } else {
+                        return Err(Error::Lexer(format!("Invalid token: '{}'.", advance(&mut it))));
                     }
                 }
             };
 
-            tokens.push(build_token(token_type, line));
+            match res {
+                Ok(t) => tokens.push(build_token(t, line)),
+                Err(e) => return Err(e)
+            }
         }
 
         tokens.push(build_token(TokenType::EOF, line));
         Ok(tokens.clone())
     }
-
 }
 
 fn build_token(token_type: TokenType, line: u32) -> Token {
     Token::new(token_type, line)
 }
 
-fn identifier<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> TokenType {
+fn identifier(it: &mut PeekableChar) -> Result<TokenType, Error> {
     let mut id = String::new();
 
     while is_alphanum(peek(it)) {
         id.push(advance(it));
     }
 
-    match id.as_ref() {
+    let t = match id.as_ref() {
         "and" => TokenType::And,
         "cond" => TokenType::Cond,
         "define" => TokenType::Define,
@@ -78,10 +76,12 @@ fn identifier<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> TokenType {
         "or" => TokenType::Or,
         "true" => TokenType::Bool(true),
         _ => TokenType::Identifier(id)
-    }
+    };
+
+    Ok(t)
 }
 
-fn number<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> TokenType {
+fn number(it: &mut PeekableChar) -> Result<TokenType, Error> {
     let mut number = String::new();
 
     while is_digit(peek(it)) {
@@ -98,10 +98,39 @@ fn number<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> TokenType {
 
     let number = number.parse::<f64>().unwrap();
 
-    TokenType::Number(number)
+    Ok(TokenType::Number(number))
 }
 
-fn symbol<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> TokenType {
+fn paren(c: char, it: &mut PeekableChar) -> Result<TokenType, Error> {
+    it.next();
+    Ok(TokenType::Paren(c))
+}
+
+fn string(it: &mut PeekableChar) -> Result<TokenType, Error> {
+    let mut string = String::new();
+
+    // Consume '"'.
+    it.next();
+
+    while peek(it) != '"' && !is_at_end(it) {
+        string.push(advance(it));
+    }
+
+    if is_at_end(it) {
+        return Err(Error::Lexer(format!("Unterminated string.")));
+    }
+
+    // Consume '"'.
+    it.next();
+
+    Ok(TokenType::String(string))
+}
+
+fn is_at_end(it: &mut Peekable<Chars>) -> bool {
+    peek(it) == '\0'
+}
+
+fn symbol(it: &mut PeekableChar) -> Result<TokenType, Error> {
     let c = advance(it);
     let mut op = c.to_string();
 
@@ -114,7 +143,7 @@ fn symbol<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> TokenType {
         _ => {}
     }
 
-    TokenType::Identifier(op)
+    Ok(TokenType::Identifier(op))
 }
 
 fn is_digit(ch: char) -> bool {
@@ -131,14 +160,14 @@ fn is_alphanum(ch: char) -> bool {
     }
 }
 
-fn peek<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> char {
+fn peek(it: &mut PeekableChar) -> char {
     match it.peek() {
         Some(t) => *t,
         None => '\0'
     }
 }
 
-fn advance<T: Iterator<Item=char>>(it: &mut Peekable<T>) -> char {
+fn advance(it: &mut PeekableChar) -> char {
     match it.next() {
         Some(t) => t,
         None => '\0'
@@ -163,17 +192,13 @@ mod tests {
 
     #[test]
     fn lex_invalid() {
-        let lexer = Lexer::new();
-        match lexer.lex(",") {
-            Ok(t) => panic!("Unexpected valid tokens: {:?}", t),
-            Err(e) => assert_that!(e.to_string(), equal_to("Invalid token: \",\""))
-        }
+        assert_invalid(",", "Invalid token: ','.");
+        assert_invalid("\"", "Unterminated string.");
     }
 
     #[test]
     fn lex_booleans() {
-        let lexer = Lexer::new();
-        let tokens = lexer.lex("true false").unwrap();
+        let tokens = lex("true false").unwrap();
 
         assert_that!(&tokens, len(3));
         assert_token(&tokens[0], &TokenType::Bool(true), 1);
@@ -183,56 +208,78 @@ mod tests {
 
     #[test]
     fn lex_keywords() {
-        let lexer = Lexer::new();
-        let tokens = lexer.lex("and cond define else if not or").unwrap();
-
-        assert_token(&tokens[0], &TokenType::And, 1);
-        assert_token(&tokens[1], &TokenType::Cond, 1);
-        assert_token(&tokens[2], &TokenType::Define, 1);
-        assert_token(&tokens[3], &TokenType::Else, 1);
-        assert_token(&tokens[4], &TokenType::If, 1);
-        assert_token(&tokens[5], &TokenType::Not, 1);
-        assert_token(&tokens[6], &TokenType::Or, 1);
+        assert_tokens("and cond define else if not or", vec![
+            TokenType::And,
+            TokenType::Cond,
+            TokenType::Define,
+            TokenType::Else,
+            TokenType::If,
+            TokenType::Not,
+            TokenType::Or,
+        ]);
     }
 
     #[test]
     fn lex_numbers() {
-        let lexer = Lexer::new();
-        let tokens = lexer.lex("123 4.56\n").unwrap();
+        assert_tokens("123 4.56\n", vec![
+            TokenType::Number(123.0),
+            TokenType::Number(4.56),
+        ]);
+    }
 
-        assert_that!(&tokens, len(3));
-        assert_token(&tokens[0], &TokenType::Number(123.0), 1);
-        assert_token(&tokens[1], &TokenType::Number(4.56), 1);
-        assert_token(&tokens[2], &TokenType::EOF, 2);
+    #[test]
+    fn lex_strings() {
+        assert_tokens("\"\" \"this is a string\"", vec![
+            TokenType::String("".to_string()),
+            TokenType::String("this is a string".to_string()),
+        ]);
     }
 
     #[test]
     fn lex_identifiers() {
-        let lexer = Lexer::new();
-        let tokens = lexer.lex("+ - * / plus_one").unwrap();
-
-        assert_that!(&tokens, len(6));
-        assert_token(&tokens[0], &TokenType::Identifier("+".to_string()), 1);
-        assert_token(&tokens[1], &TokenType::Identifier("-".to_string()), 1);
-        assert_token(&tokens[2], &TokenType::Identifier("*".to_string()), 1);
-        assert_token(&tokens[3], &TokenType::Identifier("/".to_string()), 1);
-        assert_token(&tokens[4], &TokenType::Identifier("plus_one".to_string()), 1);
-        assert_token(&tokens[5], &TokenType::EOF, 1);
+        assert_tokens("+ - * / plus_one", vec![
+            TokenType::Identifier("+".to_string()),
+            TokenType::Identifier("-".to_string()),
+            TokenType::Identifier("*".to_string()),
+            TokenType::Identifier("/".to_string()),
+            TokenType::Identifier("plus_one".to_string()),
+        ]);
     }
 
     #[test]
     fn lex_paren() {
-        let lexer = Lexer::new();
-        let tokens = lexer.lex("()").unwrap();
-
-        assert_that!(&tokens, len(3));
-        assert_token(&tokens[0], &TokenType::Paren('('), 1);
-        assert_token(&tokens[1], &TokenType::Paren(')'), 1);
-        assert_token(&tokens[2], &TokenType::EOF, 1);
+        assert_tokens("()", vec![
+            TokenType::Paren('('),
+            TokenType::Paren(')'),
+        ]);
     }
 
     fn assert_token(token: &Token, token_type: &TokenType, line: u32) {
         assert_that!(&token.token_type, equal_to(token_type));
         assert_that!(token.line, equal_to(line));
+    }
+
+    fn assert_invalid(source: &str, message: &str) {
+        let error = lex(source).unwrap_err();
+
+        assert_that!(error.to_string(), equal_to(message));
+    }
+
+    fn assert_tokens(source: &str, expected_tokens: Vec<TokenType>) {
+        let tokens = lex(source).unwrap();
+
+        assert_that!(tokens.len() - 1, equal_to(expected_tokens.len()));
+
+        for (i, token) in tokens.iter().enumerate() {
+            if token.token_type == TokenType::EOF {
+                break;
+            }
+            assert_that!(&token.token_type, equal_to(&expected_tokens[i]));
+        }
+    }
+
+    fn lex(source: &str) -> Result<Vec<Token>, Error> {
+        let lexer = Lexer::new();
+        lexer.lex(source)
     }
 }

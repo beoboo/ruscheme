@@ -13,6 +13,7 @@ pub enum TokenType {
     Number(f64),
     Or,
     Paren(char),
+    String(String),
     EOF,
 }
 
@@ -45,6 +46,7 @@ impl fmt::Display for TokenType {
             TokenType::Number(n) => write!(f, "{}", n),
             TokenType::Or => write!(f, "or"),
             TokenType::Paren(p) => write!(f, "{}", p),
+            TokenType::String(s) => write!(f, "{}", s),
             TokenType::EOF => write!(f, "EOF"),
         }
     }

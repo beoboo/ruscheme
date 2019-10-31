@@ -37,7 +37,7 @@ impl Parser {
         }
     }
 
-    fn expression_list(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, Error> {
+    fn expression_list(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
         let mut exprs = Vec::new();
         loop {
             if peek(it) == TokenType::EOF {
@@ -56,7 +56,7 @@ impl Parser {
         }
     }
 
-    fn primitive(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, Error> {
+    fn primitive(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
         let token_type = match advance(it) {
             Ok(t) => t,
             Err(e) => return report_error(e)
@@ -100,7 +100,7 @@ impl Parser {
         Ok(exprs)
     }
 
-    fn expression(&self, it: &mut Peekable<Iter<Token>>) -> Result<Expr, Error> {
+    fn expression(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
         let token_type = match advance(it) {
             Ok(t) => t,
             Err(e) => return report_error(e)
@@ -634,9 +634,8 @@ mod tests {
     }
 
     fn assert_invalid(source: &str, message: &str) {
-        let res = parse(source);
+        let error = parse(source).unwrap_err();
 
-        assert!(res.is_err());
-        assert_that!(res.err().unwrap().to_string(), equal_to(message));
+        assert_that!(error.to_string(), equal_to(message));
     }
 }

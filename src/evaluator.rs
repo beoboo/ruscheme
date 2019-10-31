@@ -358,7 +358,7 @@ mod tests {
         let mut globals = Environment::global();
         let res = eval(expr, &mut globals);
 
-        assert_that!(res.err().unwrap().to_string(), equal_to(err));
+        assert_that!(res.unwrap_err().to_string(), equal_to(err));
     }
 
     fn eval(source: &str, globals: &mut Environment) -> Result<Expr, Error> {
