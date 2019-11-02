@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::expr::Expr;
+use std::time::SystemTime;
 
 macro_rules! compare_floats {
     ($check_fn:expr) => {{
@@ -56,6 +57,8 @@ impl Environment<'_> {
         environment.define_func("<=", compare_floats!(|a, b| a <= b));
         environment.define_func(">=", compare_floats!(|a, b| a >= b));
         environment.define_func("remainder", remainder());
+        environment.define_func("display", display());
+//        environment.define_func2("runtime", runtime(SystemTime::now()));
 //        environment.define_func("random", random());
 
         environment
@@ -64,6 +67,10 @@ impl Environment<'_> {
     pub fn define_func(&mut self, name: &str, func: fn(args: Vec<Expr>) -> Result<Expr, String>) {
         self.define(name, Expr::Function(name.to_string(), func));
     }
+
+//    pub fn define_func2(&mut self, name: &str, func: impl Fn()) {
+////        self.define(name, Expr::Function(name.to_string(), func));
+//    }
 
     pub fn define(&mut self, key: &str, expr: Expr) {
         self.keys.insert(key.to_string(), expr);
@@ -83,7 +90,6 @@ impl Environment<'_> {
     }
 }
 
-
 fn add() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
         if args.len() == 0 {
@@ -96,7 +102,6 @@ fn add() -> fn(Vec<Expr>) -> Result<Expr, String> {
         }
     }
 }
-
 
 fn sub() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
@@ -176,6 +181,42 @@ fn remainder() -> fn(Vec<Expr>) -> Result<Expr, String> {
     }
 }
 
+fn display() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() != 1 {
+            return Err(format!("Exactly 1 argument required."));
+        }
+
+        let arg = args.first().unwrap();
+        println!("{}", arg);
+
+        Ok(Expr::None)
+    }
+}
+//
+//fn runtime() -> fn(Vec<Expr>) -> Result<Expr, String> {
+//    let start = SystemTime::now();
+//    |args: Vec<Expr>| -> Result<Expr, String> {
+//        if args.len() > 0 {
+//            return Err(format!("No arguments required."));
+//        }
+//
+//        Ok(Expr::Number(SystemTime::now().duration_since(start).unwrap().as_secs_f64()))
+//    }
+//}
+//
+//fn runtime() -> fn(Vec<Expr>) -> Result<Expr, String> {
+//    let start = SystemTime::now();
+//    fn res(args: Vec<Expr>) -> Result<Expr, String> {
+//        if args.len() > 0 {
+//            return Err(format!("No arguments required."));
+//        }
+//
+//        Ok(Expr::Number(SystemTime::now().duration_since(start).unwrap().as_secs_f64()))
+//    };
+//
+//    res
+//}
 
 fn parse_floats(args: Vec<Expr>) -> Result<Vec<f64>, String> {
     let mut floats = Vec::new();
@@ -209,7 +250,7 @@ mod tests {
     #[test]
     fn check_globals() {
         let environment = Environment::global();
-        assert_that!(environment.keys.len(), equal_to(10));
+        assert_that!(environment.keys.len(), equal_to(11));
     }
 
     #[test]
@@ -258,6 +299,7 @@ mod tests {
         assert_eval("(remainder 0 2)", Expr::Number(0.0));
         assert_eval("(remainder 1 2)", Expr::Number(1.0));
         assert_eval("(remainder (+ 1) 2)", Expr::Number(1.0));
+        assert_eval("(display \"test\")", Expr::None);
     }
 
     #[test]

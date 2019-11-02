@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn lex_keywords() {
-        assert_tokens("and cond define else if not or", vec![
+        assert_lex("and cond define else if not or", vec![
             TokenType::And,
             TokenType::Cond,
             TokenType::Define,
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn lex_numbers() {
-        assert_tokens("123 4.56\n", vec![
+        assert_lex("123 4.56\n", vec![
             TokenType::Number(123.0),
             TokenType::Number(4.56),
         ]);
@@ -229,15 +229,19 @@ mod tests {
 
     #[test]
     fn lex_strings() {
-        assert_tokens("\"\" \"this is a string\"", vec![
+        assert_lex("\"\"\
+         \"this is a string\"\
+         \" *** \"\
+         ", vec![
             TokenType::String("".to_string()),
             TokenType::String("this is a string".to_string()),
+            TokenType::String(" *** ".to_string()),
         ]);
     }
 
     #[test]
     fn lex_identifiers() {
-        assert_tokens("+ - * / plus_one", vec![
+        assert_lex("+ - * / plus_one", vec![
             TokenType::Identifier("+".to_string()),
             TokenType::Identifier("-".to_string()),
             TokenType::Identifier("*".to_string()),
@@ -248,7 +252,7 @@ mod tests {
 
     #[test]
     fn lex_paren() {
-        assert_tokens("()", vec![
+        assert_lex("()", vec![
             TokenType::Paren('('),
             TokenType::Paren(')'),
         ]);
@@ -265,7 +269,7 @@ mod tests {
         assert_that!(error.to_string(), equal_to(message));
     }
 
-    fn assert_tokens(source: &str, expected_tokens: Vec<TokenType>) {
+    fn assert_lex(source: &str, expected_tokens: Vec<TokenType>) {
         let tokens = lex(source).unwrap();
 
         assert_that!(tokens.len() - 1, equal_to(expected_tokens.len()));

@@ -69,6 +69,7 @@ impl Parser {
             TokenType::Bool(b) => Ok(Expr::Bool(b)),
             TokenType::Identifier(i) => Ok(Expr::Identifier(i)),
             TokenType::Number(n) => Ok(Expr::Number(n)),
+            TokenType::String(s) => Ok(Expr::String(s)),
             TokenType::Define => report_error("'define' cannot be used outside expressions."),
             TokenType::Paren('(') => self.expression(it),
             TokenType::EOF => Err(UnterminatedInput),
@@ -218,6 +219,7 @@ impl Parser {
                     };
                 }
                 TokenType::Paren(')') => break,
+                TokenType::EOF => return Err(UnterminatedInput),
                 _ => return report_error("Expected ')' after cond.")
             };
         }
@@ -237,6 +239,7 @@ impl Parser {
         match advance(it) {
             Ok(TokenType::Identifier(i)) => self.define_expression(&i, it),
             Ok(TokenType::Paren('(')) => self.define_procedure(it),
+            Ok(TokenType::EOF) => return Err(UnterminatedInput),
             t => return report_error(format!("Expected name or '(' after define (found: {:?}).", t))
         }
     }
@@ -345,6 +348,7 @@ impl Parser {
     fn define_procedure(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
         let name = match advance(it) {
             Ok(TokenType::Identifier(i)) => Expr::Identifier(i),
+            Ok(TokenType::EOF) => return Err(UnterminatedInput),
             _ => return report_error(format!("Expected procedure name."))
         };
         debug!("procedure '{}'", name);
@@ -381,7 +385,6 @@ fn report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
 fn advance(it: &mut PeekableToken) -> Result<TokenType, String> {
     match it.next() {
         Some(token) => {
-//            debug!("Token: {}", token.token_type);
             Ok(token.token_type.clone())
         }
         None => Err(format!("Token not found."))
@@ -452,6 +455,7 @@ mod tests {
         assert_parse("123", Expr::List(vec![Expr::Number(123.0)]));
         assert_parse("true", Expr::List(vec![Expr::Bool(true)]));
         assert_parse("false", Expr::List(vec![Expr::Bool(false)]));
+        assert_parse("\"string\"", Expr::List(vec![Expr::String("string".to_string())]));
         assert_parse("+", Expr::List(vec![Expr::Identifier("+".to_string())]));
         assert_parse("+ 1 true", Expr::List(vec![
             Expr::Identifier("+".to_string()),

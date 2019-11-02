@@ -3,6 +3,7 @@ use std::fmt;
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Empty,
+    None,
     And(Vec<Expr>),
     Bool(bool),
     Cond(Vec<Expr>, Vec<Expr>),
@@ -17,6 +18,7 @@ pub enum Expr {
     Or(Vec<Expr>),
     Predicate(Box<Expr>, Vec<Expr>),
     Procedure(String, Vec<Expr>, Vec<Expr>),
+    String(String),
 }
 
 impl Expr {
@@ -63,12 +65,13 @@ impl fmt::Display for Expr {
                 }
             }
             Expr::List(exprs) => write!(f, "[{}]", build_str(exprs)),
+            Expr::None => write!(f, "No result"),
             Expr::Not(expr) => write!(f, "(not {})", expr),
             Expr::Number(n) => write!(f, "{}", n),
             Expr::Or(exprs) => write!(f, "(or {})", build_str(exprs)),
             Expr::Predicate(test, exprs) => write!(f, "({} {})", test, build_str(exprs)),
             Expr::Procedure(name, _, _) => write!(f, "procedure \"{}\"", name),
-//            e => write!(f, "Undefined expression \"{:?}\"", e),
+            Expr::String(s) => write!(f, "{}", s),
         }
     }
 }

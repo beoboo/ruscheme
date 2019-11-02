@@ -37,6 +37,7 @@ impl Evaluator {
             Expr::Number(_) => Ok(expr.clone()),
             Expr::Procedure(_, _, _) => Ok(expr.clone()),
             Expr::Or(exprs) => self.eval_or(exprs, env),
+            Expr::String(_) => Ok(expr.clone()),
             e => panic!("Unmapped expression: {}", e)
 //        };
         }
@@ -99,7 +100,7 @@ impl Evaluator {
         Ok(Expr::Bool(false))
     }
 
-    fn eval_cond(&self, predicate_branches: &Vec<Expr>, _else_branch: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+    fn eval_cond(&self, predicate_branches: &Vec<Expr>, else_branch: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
         for branch in predicate_branches {
             match branch {
                 Expr::Predicate(predicate, exprs) => {
@@ -113,7 +114,11 @@ impl Evaluator {
             }
         }
 
-        self.eval_list(_else_branch, env)
+        if else_branch.len() == 0 {
+            Ok(Expr::None)
+        } else {
+            self.eval_list(else_branch, env)
+        }
     }
 
     fn eval_definition(&self, name: &String, expr: &Box<Expr>, env: &mut Environment) -> Result<Expr, String> {
@@ -312,6 +317,7 @@ mod tests {
 
     #[test]
     fn eval_conditions() {
+        assert_eval("(cond (false -1))", Expr::None);
         assert_eval("(cond ((< 1 2) 1))", Expr::Number(1.0));
         assert_eval("(cond ((< 1 2) 1 2))", Expr::Number(2.0));
         assert_eval("(cond ((> 1 2) 1) (else 2))", Expr::Number(2.0));
