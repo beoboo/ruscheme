@@ -68,10 +68,6 @@ impl Environment<'_> {
         self.define(name, Expr::Function(name.to_string(), func));
     }
 
-//    pub fn define_func2(&mut self, name: &str, func: impl Fn()) {
-////        self.define(name, Expr::Function(name.to_string(), func));
-//    }
-
     pub fn define(&mut self, key: &str, expr: Expr) {
         self.keys.insert(key.to_string(), expr);
     }
@@ -109,10 +105,7 @@ fn sub() -> fn(Vec<Expr>) -> Result<Expr, String> {
             return Err(format!("At least 1 argument required."));
         }
 
-        let floats = match parse_floats(args) {
-            Ok(nums) => nums,
-            Err(e) => return Err(e)
-        };
+        let floats = parse_floats(args)?;
 
         let (first, rest) = floats.split_first().unwrap();
         let first = *first;
@@ -146,10 +139,7 @@ fn div() -> fn(Vec<Expr>) -> Result<Expr, String> {
             return Err(format!("At least 2 arguments required."));
         }
 
-        let floats = match parse_floats(args) {
-            Ok(nums) => nums,
-            Err(e) => return Err(e)
-        };
+        let floats = parse_floats(args)?;
 
         let (first, rest) = floats.split_first().unwrap();
         let first = *first;
@@ -193,7 +183,7 @@ fn display() -> fn(Vec<Expr>) -> Result<Expr, String> {
         Ok(Expr::None)
     }
 }
-//
+
 //fn runtime() -> fn(Vec<Expr>) -> Result<Expr, String> {
 //    let start = SystemTime::now();
 //    |args: Vec<Expr>| -> Result<Expr, String> {
@@ -203,19 +193,6 @@ fn display() -> fn(Vec<Expr>) -> Result<Expr, String> {
 //
 //        Ok(Expr::Number(SystemTime::now().duration_since(start).unwrap().as_secs_f64()))
 //    }
-//}
-//
-//fn runtime() -> fn(Vec<Expr>) -> Result<Expr, String> {
-//    let start = SystemTime::now();
-//    fn res(args: Vec<Expr>) -> Result<Expr, String> {
-//        if args.len() > 0 {
-//            return Err(format!("No arguments required."));
-//        }
-//
-//        Ok(Expr::Number(SystemTime::now().duration_since(start).unwrap().as_secs_f64()))
-//    };
-//
-//    res
 //}
 
 fn parse_floats(args: Vec<Expr>) -> Result<Vec<f64>, String> {
