@@ -72,6 +72,7 @@ fn identifier(it: &mut PeekableChar) -> Result<TokenType, Error> {
         "else" => TokenType::Else,
         "false" => TokenType::Bool(false),
         "if" => TokenType::If,
+        "lambda" => TokenType::Lambda,
         "not" => TokenType::Not,
         "or" => TokenType::Or,
         "true" => TokenType::Bool(true),
@@ -208,12 +209,13 @@ mod tests {
 
     #[test]
     fn lex_keywords() {
-        assert_lex("and cond define else if not or", vec![
+        assert_lex("and cond define else if lambda not or", vec![
             TokenType::And,
             TokenType::Cond,
             TokenType::Define,
             TokenType::Else,
             TokenType::If,
+            TokenType::Lambda,
             TokenType::Not,
             TokenType::Or,
         ]);
