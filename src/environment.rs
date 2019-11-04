@@ -1,7 +1,9 @@
 use std::collections::HashMap;
-
-use crate::expr::Expr;
 use std::time::SystemTime;
+
+use crate::expr::{Expr, Callable, BoxedAction};
+use log::debug;
+use std::rc::Rc;
 
 macro_rules! compare_floats {
     ($check_fn:expr) => {{
@@ -20,7 +22,7 @@ macro_rules! compare_floats {
 
             fn compare(first: f64, rest: &[f64]) -> bool {
                 match rest.first() {
-                    Some(x) => $check_fn(first, *x) && compare(*x, &rest[1..]),
+                    Some(x) => $check_fn(first, *x) &&compare(*x, &rest[1..]),
                     None => true
                 }
             }
@@ -34,14 +36,14 @@ macro_rules! compare_floats {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Environment<'a> {
     parent: Option<&'a Environment<'a>>,
-    keys: HashMap<String, Expr>
+    keys: HashMap<String, Expr>,
 }
 
 impl Environment<'_> {
     pub fn new<'a>(parent: Option<&'a Environment>) -> Environment<'a> {
         Environment {
             parent,
-            keys: HashMap::new()
+            keys: HashMap::new(),
         }
     }
 
@@ -58,7 +60,10 @@ impl Environment<'_> {
         environment.define_func(">=", compare_floats!(|a, b| a >= b));
         environment.define_func("remainder", remainder());
         environment.define_func("display", display());
-//        environment.define_func2("runtime", runtime(SystemTime::now()));
+
+        let now = SystemTime::now();
+
+        environment.define_callable("runtime", Box::new(move |args| runtime(now, args)));
 //        environment.define_func("random", random());
 
         environment
@@ -68,17 +73,27 @@ impl Environment<'_> {
         self.define(name, Expr::Function(name.to_string(), func));
     }
 
+    pub fn define_callable(&mut self, name: &str, action: BoxedAction) {
+        self.define(name, Expr::Callable(Callable::new(name.to_string(), Rc::new(action))));
+    }
+
     pub fn define(&mut self, key: &str, expr: Expr) {
         self.keys.insert(key.to_string(), expr);
     }
 
     pub fn get(&self, key: &str) -> Result<&Expr, String> {
+        debug!("Looking for {}", key);
         match self.keys.get(key) {
-            Some(v) => Ok(v),
+            Some(v) => {
+                debug!("Found");
+                Ok(v)
+            },
             None => {
                 if let Some(p) = self.parent {
+                    debug!("Looking for parent");
                     p.get(key)
                 } else {
+                    debug!("Looking for parent");
                     Err(format!("{} not found", key))
                 }
             }
@@ -184,16 +199,10 @@ fn display() -> fn(Vec<Expr>) -> Result<Expr, String> {
     }
 }
 
-//fn runtime() -> fn(Vec<Expr>) -> Result<Expr, String> {
-//    let start = SystemTime::now();
-//    |args: Vec<Expr>| -> Result<Expr, String> {
-//        if args.len() > 0 {
-//            return Err(format!("No arguments required."));
-//        }
-//
-//        Ok(Expr::Number(SystemTime::now().duration_since(start).unwrap().as_secs_f64()))
-//    }
-//}
+fn runtime(start: SystemTime, _args: Vec<Expr>) -> Result<Expr, String> {
+    let now = SystemTime::now();
+    Ok(Expr::Number(now.duration_since(start).unwrap().as_secs_f64()))
+}
 
 fn parse_floats(args: Vec<Expr>) -> Result<Vec<f64>, String> {
     let mut floats = Vec::new();
@@ -212,11 +221,12 @@ fn parse_floats(args: Vec<Expr>) -> Result<Vec<f64>, String> {
 mod tests {
     use hamcrest2::prelude::*;
 
-    use super::*;
+    use crate::error::Error;
+    use crate::evaluator::Evaluator;
     use crate::lexer::Lexer;
     use crate::parser::Parser;
-    use crate::evaluator::Evaluator;
-    use crate::error::Error;
+
+    use super::*;
 
     #[test]
     fn check_empty() {
@@ -227,7 +237,7 @@ mod tests {
     #[test]
     fn check_globals() {
         let environment = Environment::global();
-        assert_that!(environment.keys.len(), equal_to(11));
+        assert_that!(environment.keys.len(), equal_to(12));
     }
 
     #[test]
@@ -235,7 +245,8 @@ mod tests {
         let mut environment = Environment::new(None);
         environment.define("a", Expr::Number(123.0));
 
-        assert_that!(environment.get("a").unwrap(), equal_to(& Expr::Number(123.0)));
+        let expr = environment.get("a").unwrap();
+        assert_that!(expr, equal_to(&Expr::Number(123.0)));
     }
 
     #[test]
@@ -245,7 +256,7 @@ mod tests {
         let expected = expr.clone();
         environment.define("a", expr);
 
-        assert_that!(environment.get("a").unwrap(), equal_to( & expected));
+        assert_that!(environment.get("a").unwrap(), equal_to( &expected));
     }
 
     #[test]
@@ -254,7 +265,7 @@ mod tests {
         environment1.define("a", Expr::Number(123.0));
 
         let environment2 = Environment::new(Some(&environment1));
-        assert_that!(environment2.get("a").unwrap(), equal_to(& Expr::Number(123.0)));
+        assert_that!(environment2.get("a").unwrap(), equal_to(&Expr::Number(123.0)));
     }
 
     #[test]
@@ -332,6 +343,5 @@ mod tests {
             None => Err(Error::Evaluator(format!("No expressions to eval.")))
         }
     }
-
 }
 

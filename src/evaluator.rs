@@ -1,6 +1,6 @@
 use crate::environment::Environment;
 use crate::error::Error;
-use crate::expr::Expr;
+use crate::expr::{Expr, Callable};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Evaluator {}
@@ -18,10 +18,6 @@ impl Evaluator {
     }
 
     fn eval(&self, expr: &Expr, env: &mut Environment) -> Result<Expr, String> {
-//        println!("eval: {}", expr);
-//        println!("eval {}: {:?}", expr, expr);
-
-//        let res= match expr {
         match expr {
             Expr::And(exprs) => self.eval_and(exprs, env),
             Expr::Bool(_) => Ok(expr.clone()),
@@ -30,6 +26,7 @@ impl Evaluator {
             Expr::Empty => Ok(expr.clone()),
             Expr::Expression(expr, args) => self.eval_expression(expr, args, env),
             Expr::Function(_, _) => Ok(expr.clone()),
+            Expr::Callable(_) => Ok(expr.clone()),
             Expr::Identifier(s) => self.eval_identifier(s, env),
             Expr::If(predicate, then_branch, else_branch) => self.eval_if(predicate, then_branch, else_branch, env),
             Expr::List(list) => self.eval_list(list, env),
@@ -39,13 +36,7 @@ impl Evaluator {
             Expr::Or(exprs) => self.eval_or(exprs, env),
             Expr::String(_) => Ok(expr.clone()),
             e => panic!("Unmapped expression: {}", e)
-//        };
         }
-
-//        let r2 = res.clone();
-
-//        println!("res: {:?}", res);
-//        r2
     }
 
     fn eval_expression(&self, expr: &Box<Expr>, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
@@ -173,6 +164,7 @@ impl Evaluator {
 
         match expr {
             Expr::Function(_, f) => self.eval_function(f, args, env),
+            Expr::Callable(c) => self.eval_callable(c, args, env),
             Expr::Procedure(_, params, body) => self.eval_procedure(name, args, params, body, env),
             _ => Err(format!("Cannot execute: '{}'.", expr))
         }
@@ -187,6 +179,18 @@ impl Evaluator {
             }
         }
         f(evaluated_args)
+    }
+
+    fn eval_callable(&self, callable: Callable, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        let mut evaluated_args = Vec::new();
+        for arg in args {
+            match self.eval(&arg, env) {
+                Ok(e) => evaluated_args.push(e),
+                Err(e) => return Err(e),
+            }
+        }
+        let action = callable.action.as_ref().as_ref();
+        action(evaluated_args)
     }
 
     fn eval_procedure(&self, name: String, args: &Vec<Expr>, params: Vec<Expr>, body: Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
@@ -240,17 +244,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn eval_primitives() {
-        assert_eval("true", Expr::Bool(true));
-        assert_eval("false", Expr::Bool(false));
-        assert_eval("486", Expr::Number(486.0));
-    }
-
-    #[test]
     fn eval_identifiers() {
         let mut globals = Environment::global();
         let res = eval("+", &mut globals);
         assert_that!(&res.unwrap(), equal_to(globals.get("+").unwrap()));
+    }
+
+    #[test]
+    fn eval_primitives() {
+        assert_eval("true", Expr::Bool(true));
+        assert_eval("false", Expr::Bool(false));
+        assert_eval("486", Expr::Number(486.0));
     }
 
     #[test]
@@ -341,6 +345,14 @@ mod tests {
                     (square 2)",
                     Expr::Number(4.0),
         );
+    }
+
+    #[test]
+    fn eval_callable() {
+        let mut globals = Environment::global();
+        let res = eval("(runtime)", &mut globals);
+
+        assert_that!(res.unwrap(), not(equal_to(Expr::Number(0.0))));
     }
 
     fn assert_definition(expr: &str, expected_name: Expr, expected_definition: Expr) {

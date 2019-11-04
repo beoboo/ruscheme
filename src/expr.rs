@@ -1,6 +1,39 @@
 use std::fmt;
+use std::rc::Rc;
+use std::fmt::{Formatter, Error};
 
-#[derive(Debug, PartialEq, Clone)]
+pub type Action = dyn Fn(Vec<Expr>) -> Result<Expr, String>;
+pub type BoxedAction = Box<Action>;
+pub type RcAction = Rc<BoxedAction>;
+
+#[derive(Clone)]
+pub struct Callable {
+    pub name: String,
+    pub action: RcAction
+}
+
+impl Callable {
+    pub fn new(name: String, action: RcAction) -> Callable {
+        Callable{
+            name,
+            action
+        }
+    }
+}
+
+impl fmt::Debug for Callable {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        write!(f, "{}", self.name)
+    }
+}
+
+impl PartialEq for Callable {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub enum Expr {
     Empty,
     None,
@@ -10,6 +43,7 @@ pub enum Expr {
     Define(String, Box<Expr>),
     Expression(Box<Expr>, Vec<Expr>),
     Function(String, fn(Vec<Expr>) -> Result<Expr, String>),
+    Callable(Callable),
     Identifier(String),
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
     List(Vec<Expr>),
@@ -22,7 +56,7 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub(crate) fn to_f64(&self) -> Result<f64, String> {
+    pub fn to_f64(&self) -> Result<f64, String> {
         match *self {
             Expr::Number(n) => Ok(n),
             _ => Err(format!("Cannot convert {} to f64", self))
@@ -32,6 +66,7 @@ impl Expr {
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//        return write!(f, "None");
         match self {
             Expr::And(exprs) => write!(f, "(and {})", build_str(exprs)),
             Expr::Bool(b) => write!(f, "{}", if *b { "#t" } else { "#f" }),
@@ -53,7 +88,8 @@ impl fmt::Display for Expr {
                     write!(f, "({} {})", name, build_str(exprs))
                 }
             }
-            Expr::Function(name, _) => write!(f, "native \"{}\"", name),
+            Expr::Function(name, _) => write!(f, "native '{}'", name),
+            Expr::Callable(callable) => write!(f, "native '{}'", callable.name),
             Expr::Identifier(s) => write!(f, "{}", s),
             Expr::If(predicate, then_branch, else_branch) => {
                 let predicate = predicate.as_ref();
@@ -70,7 +106,7 @@ impl fmt::Display for Expr {
             Expr::Number(n) => write!(f, "{}", n),
             Expr::Or(exprs) => write!(f, "(or {})", build_str(exprs)),
             Expr::Predicate(test, exprs) => write!(f, "({} {})", test, build_str(exprs)),
-            Expr::Procedure(name, _, _) => write!(f, "procedure \"{}\"", name),
+            Expr::Procedure(name, _, _) => write!(f, "procedure '{}'", name),
             Expr::String(s) => write!(f, "{}", s),
         }
     }

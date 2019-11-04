@@ -7,8 +7,8 @@ edition = "2018"
 [dependencies]
 colored = "*"
 log = "*"
+env_logger = "*"
 crossterm = "*"
 
 [dev-dependencies]
 hamcrest2 = "*"
-env_logger = "*"
