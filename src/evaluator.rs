@@ -22,7 +22,7 @@ impl Evaluator {
             Expr::And(exprs) => self.eval_and(exprs, env),
             Expr::Bool(_) => Ok(expr.clone()),
             Expr::Cond(predicate_branches, else_branch) => self.eval_cond(predicate_branches, else_branch, env),
-            Expr::Define(name, expr) => self.eval_definition(name, expr, env),
+            Expr::Define(name, expr) => self.eval_define(name, expr, env),
             Expr::Empty => Ok(expr.clone()),
             Expr::Expression(expr, args) => self.eval_expression(expr, args, env),
             Expr::Function(_, _) => Ok(expr.clone()),
@@ -32,7 +32,7 @@ impl Evaluator {
             Expr::List(list) => self.eval_list(list, env),
             Expr::Not(expr) => self.eval_not(expr, env),
             Expr::Number(_) => Ok(expr.clone()),
-            Expr::Procedure(_, _, _) => Ok(expr.clone()),
+            Expr::Lambda(_, _) => Ok(expr.clone()),
             Expr::Or(exprs) => self.eval_or(exprs, env),
             Expr::String(_) => Ok(expr.clone()),
             e => panic!("Unmapped expression: {}", e)
@@ -71,26 +71,6 @@ impl Evaluator {
         Ok(Expr::Bool(true))
     }
 
-    fn eval_not(&self, expr: &Box<Expr>, env: &mut Environment) -> Result<Expr, String> {
-        match self.eval(expr.as_ref(), env) {
-            Ok(expr) => Ok(Expr::Bool(!to_bool(expr))),
-            Err(e) => Err(format!("Invalid expression: {}", e)),
-        }
-    }
-
-    fn eval_or(&self, exprs: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
-        for expr in exprs {
-            match self.eval(expr, env) {
-                Ok(expr) => if to_bool(expr) {
-                    return Ok(Expr::Bool(true));
-                }
-                Err(e) => return Err(format!("Invalid expression: {}", e)),
-            }
-        }
-
-        Ok(Expr::Bool(false))
-    }
-
     fn eval_cond(&self, predicate_branches: &Vec<Expr>, else_branch: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
         for branch in predicate_branches {
             match branch {
@@ -112,9 +92,20 @@ impl Evaluator {
         }
     }
 
-    fn eval_definition(&self, name: &String, expr: &Box<Expr>, env: &mut Environment) -> Result<Expr, String> {
+    fn eval_define(&self, name: &String, expr: &Box<Expr>, env: &mut Environment) -> Result<Expr, String> {
         env.define(name, expr.as_ref().clone());
         Ok(Expr::Identifier(name.to_string()))
+    }
+
+    fn eval_identifier(&self, s: &String, env: &mut Environment) -> Result<Expr, String> {
+        let res = env.get(s);
+
+        match res {
+            Ok(expr) => {
+                self.eval(&expr.clone(), env)
+            }
+            _ => Err(format!("Undefined identifier: '{}'.", s))
+        }
     }
 
     fn eval_if(&self, predicate: &Box<Expr>, then_branch: &Box<Expr>, else_branch: &Option<Box<Expr>>, env: &mut Environment) -> Result<Expr, String> {
@@ -141,15 +132,24 @@ impl Evaluator {
         Ok(res)
     }
 
-    fn eval_identifier(&self, s: &String, env: &mut Environment) -> Result<Expr, String> {
-        let res = env.get(s);
-
-        match res {
-            Ok(expr) => {
-                self.eval(&expr.clone(), env)
-            }
-            _ => Err(format!("Undefined identifier: '{}'.", s))
+    fn eval_not(&self, expr: &Box<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        match self.eval(expr.as_ref(), env) {
+            Ok(expr) => Ok(Expr::Bool(!to_bool(expr))),
+            Err(e) => Err(format!("Invalid expression: {}", e)),
         }
+    }
+
+    fn eval_or(&self, exprs: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        for expr in exprs {
+            match self.eval(expr, env) {
+                Ok(expr) => if to_bool(expr) {
+                    return Ok(Expr::Bool(true));
+                }
+                Err(e) => return Err(format!("Invalid expression: {}", e)),
+            }
+        }
+
+        Ok(Expr::Bool(false))
     }
 
     fn eval_function_call(&self, name: String, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
@@ -165,7 +165,7 @@ impl Evaluator {
         match expr {
             Expr::Function(_, f) => self.eval_function(f, args, env),
             Expr::Callable(c) => self.eval_callable(c, args, env),
-            Expr::Procedure(_, params, body) => self.eval_procedure(name, args, params, body, env),
+            Expr::Lambda(params, body) => self.eval_lambda(name, args, params, body, env),
             _ => Err(format!("Cannot execute: '{}'.", expr))
         }
     }
@@ -193,7 +193,7 @@ impl Evaluator {
         action(evaluated_args)
     }
 
-    fn eval_procedure(&self, name: String, args: &Vec<Expr>, params: Vec<Expr>, body: Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+    fn eval_lambda(&self, name: String, args: &Vec<Expr>, params: Vec<Expr>, body: Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
         let parent = env.clone();
         let mut enclosing = Environment::new(Some(&parent));
 
@@ -291,8 +291,7 @@ mod tests {
 
         assert_definition("(define (square x) (* x x))",
                           Expr::Identifier("square".to_string()),
-                          Expr::Procedure(
-                              "square".to_string(),
+                          Expr::Lambda(
                               vec![Expr::Identifier("x".to_string())],
                               vec![(Expr::Expression(Box::new(Expr::Identifier("*".to_string())), vec![
                                   Expr::Identifier("x".to_string()),
@@ -313,7 +312,7 @@ mod tests {
         assert_eval("\
                     (define (a) (+ 1))\
                     a",
-                    Expr::Procedure("a".to_string(), vec![], vec![
+                    Expr::Lambda(vec![], vec![
                         Expr::Expression(Box::new(Expr::Identifier("+".to_string())), vec![Expr::Number(1.0)])
                     ]),
         );

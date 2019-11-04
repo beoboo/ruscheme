@@ -51,7 +51,7 @@ pub enum Expr {
     Number(f64),
     Or(Vec<Expr>),
     Predicate(Box<Expr>, Vec<Expr>),
-    Procedure(String, Vec<Expr>, Vec<Expr>),
+    Lambda(Vec<Expr>, Vec<Expr>),
     String(String),
 }
 
@@ -106,7 +106,7 @@ impl fmt::Display for Expr {
             Expr::Number(n) => write!(f, "{}", n),
             Expr::Or(exprs) => write!(f, "(or {})", build_str(exprs)),
             Expr::Predicate(test, exprs) => write!(f, "({} {})", test, build_str(exprs)),
-            Expr::Procedure(name, _, _) => write!(f, "procedure '{}'", name),
+            Expr::Lambda(_, _) => write!(f, "lambda"),
             Expr::String(s) => write!(f, "{}", s),
         }
     }
