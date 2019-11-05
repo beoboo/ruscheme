@@ -285,11 +285,11 @@ impl Parser {
         let body = self.build_expressions(it)?;
         debug!("body '{:?}'", body);
 
-        exprs.insert(0, Expr::Lambda(args, body));
+        let lambda = Expr::Lambda(args, body);
 
-        Ok(Expr::List(exprs))
+        Ok(Expr::Expression(Box::new(lambda), exprs))
     }
-    
+
     fn let_variable(&self, it: &mut PeekableToken) -> Result<(Expr, Expr), Error> {
         consume(TokenType::Paren('('), it, format!("Expected '(' before variable."))?;
 
@@ -672,27 +672,35 @@ mod tests {
 //        env_logger::init();
         assert_parse("(let () 1)",
                      Expr::List(vec![
-                         Expr::List(vec![
-                             Expr::Lambda(
-                                 vec![],
-                                 vec![
-                                     Expr::Number(1.0)
-                                 ],
-                             ),
-                         ])
+                         Expr::Expression(Box::new(Expr::Lambda(
+                             vec![],
+                             vec![
+                                 Expr::Number(1.0)
+                             ],
+                         )),
+                                          vec![])
                      ]),
         );
         assert_parse("(let ((x 3)) x)",
                      Expr::List(vec![
-                         Expr::List(vec![
-                             Expr::Lambda(
-                                 vec![Expr::Identifier("x".to_string())],
-                                 vec![
-                                     Expr::Identifier("x".to_string())
-                                 ],
-                             ),
-                             Expr::Number(3.0)
-                         ])
+                         Expr::Expression(Box::new(Expr::Lambda(
+                             vec![Expr::Identifier("x".to_string())],
+                             vec![
+                                 Expr::Identifier("x".to_string())
+                             ],
+                         )),
+                                          vec![Expr::Number(3.0)])
+                     ]),
+        );
+        assert_parse("(let () x)",
+                     Expr::List(vec![
+                         Expr::Expression(Box::new(Expr::Lambda(
+                             vec![],
+                             vec![
+                                 Expr::Identifier("x".to_string())
+                             ],
+                         )),
+                                          vec![])
                      ]),
         );
     }

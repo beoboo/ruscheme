@@ -309,6 +309,16 @@ mod tests {
     }
 
     #[test]
+    fn eval_lets() {
+//        env_logger::init();
+        assert_eval("\
+                    (define x 1)\
+                    (let () (+ x 5))",
+                    Expr::Number(6.0),
+        );
+    }
+
+    #[test]
     fn eval_callable() {
         let mut globals = Environment::global();
         let res = eval("(runtime)", &mut globals);
@@ -354,6 +364,8 @@ mod tests {
             Ok(e) => e,
             Err(e) => return Err(e)
         };
+
+        println!("{:?}", expr);
 
         let res = match evaluator.evaluate(&expr, globals) {
             Ok(expr) => Some(expr),
