@@ -106,6 +106,7 @@ impl Parser {
             TokenType::If => return self.form(token_type, it),
             TokenType::Identifier(_) => return self.form(token_type, it),
             TokenType::Lambda => return self.form(token_type, it),
+            TokenType::Let => return self.form(token_type, it),
             TokenType::Not => return self.form(token_type, it),
             TokenType::Or => return self.form(token_type, it),
             TokenType::Paren(')') => return Ok(Expr::Empty),
@@ -138,14 +139,15 @@ impl Parser {
 
         let res = match token_type.clone() {
             TokenType::And => self.and(it),
-            TokenType::Cond => self.condition(it),
-            TokenType::Define => self.definition(it),
+            TokenType::Cond => self.cond(it),
+            TokenType::Define => self.define(it),
             TokenType::If => self.if_then(it),
-            TokenType::Identifier(i) => self.function_call(i, it),
+            TokenType::Identifier(i) => self.call(i, it),
             TokenType::Lambda => {
                 consume(TokenType::Paren('('), it, format!("Expected '(' after 'lambda'."))?;
                 self.lambda(it)
             }
+            TokenType::Let => self.define_let(it),
             TokenType::Not => self.not(it),
             TokenType::Or => self.or(it),
             t => return report_error(format!("Undefined form '{}'.", t))
@@ -168,7 +170,14 @@ impl Parser {
         Ok(Expr::And(exprs))
     }
 
-    fn condition(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
+    fn call(&self, name: String, it: &mut PeekableToken) -> Result<Expr, Error> {
+        debug!("call: '{}'", name);
+        let args = self.build_expressions(it)?;
+
+        Ok(Expr::Expression(Box::new(Expr::Identifier(name)), args))
+    }
+
+    fn cond(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
         debug!("condition");
         let mut predicate_branches = Vec::new();
         let mut else_branch = Vec::new();
@@ -214,7 +223,7 @@ impl Parser {
         Ok(Expr::Cond(predicate_branches, else_branch))
     }
 
-    fn definition(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
+    fn define(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
         debug!("definition");
         match advance(it) {
             Ok(TokenType::Identifier(i)) => self.define_expression(&i, it),
@@ -252,6 +261,46 @@ impl Parser {
         Ok(Expr::If(Box::new(predicate), Box::new(then_branch), else_branch))
     }
 
+    fn define_let(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
+        consume(TokenType::Paren('('), it, format!("Expected '(' after 'let'."))?;
+        let mut args = Vec::new();
+        let mut exprs = Vec::new();
+
+        loop {
+            match peek(it) {
+                TokenType::Paren(')') => break,
+                TokenType::Paren('(') => {
+                    let (arg, expr) = self.let_variable(it)?;
+                    args.push(arg);
+                    exprs.push(expr);
+                }
+                t => {
+                    debug!("Found {}", t)
+                }
+            };
+        }
+
+        consume(TokenType::Paren(')'), it, format!("Expected ')' after 'let' definitions."))?;
+
+        let body = self.build_expressions(it)?;
+        debug!("body '{:?}'", body);
+
+        exprs.insert(0, Expr::Lambda(args, body));
+
+        Ok(Expr::List(exprs))
+    }
+    
+    fn let_variable(&self, it: &mut PeekableToken) -> Result<(Expr, Expr), Error> {
+        consume(TokenType::Paren('('), it, format!("Expected '(' before variable."))?;
+
+        let arg = self.primitive(it)?;
+        let expr = self.primitive(it)?;
+
+        consume(TokenType::Paren(')'), it, format!("Expected ')' after variable."))?;
+
+        Ok((arg, expr))
+    }
+
     fn not(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
         let expr = self.primitive(it)?;
 
@@ -275,13 +324,6 @@ impl Parser {
         Ok(Expr::Predicate(Box::new(test), exprs))
     }
 
-    fn function_call(&self, name: String, it: &mut PeekableToken) -> Result<Expr, Error> {
-        debug!("function call: '{}'", name);
-        let args = self.build_expressions(it)?;
-
-        Ok(Expr::Expression(Box::new(Expr::Identifier(name)), args))
-    }
-
     fn define_expression(&self, name: &str, it: &mut PeekableToken) -> Result<Expr, Error> {
         debug!("define expression: {}", name);
         let expr = match advance(it) {
@@ -291,7 +333,7 @@ impl Parser {
                 let token_type = advance(it)?;
 
                 let expr = match token_type {
-                    TokenType::Identifier(i) => self.function_call(i, it)?,
+                    TokenType::Identifier(i) => self.call(i, it)?,
                     TokenType::Lambda => {
                         consume(TokenType::Paren('('), it, format!("Expected '(' after 'lambda'."))?;
                         self.lambda(it)?
@@ -329,6 +371,10 @@ impl Parser {
 
         consume(TokenType::Paren(')'), it, format!("Expected ')' after lambda parameters."))?;
 
+        if peek(it) == TokenType::Paren(')') {
+            return report_error(format!("Expected lambda body."));
+        }
+
         let body = self.build_expressions(it)?;
         debug!("body '{:?}'", body);
 
@@ -359,6 +405,7 @@ fn consume<S: Into<String>>(token_type: TokenType, it: &mut PeekableToken, messa
 
     let t = peek(it);
     if t == token_type {
+        debug!("Consumed: {}", token_type);
         advance(it).unwrap();
         return Ok(());
     }
@@ -367,6 +414,7 @@ fn consume<S: Into<String>>(token_type: TokenType, it: &mut PeekableToken, messa
         return Err(UnterminatedInput);
     }
 
+    debug!("Found: {}", t);
     report_error(message.into())
 }
 
@@ -412,6 +460,8 @@ mod tests {
         assert_invalid("(1)", "'1' is not callable.");
         assert_invalid("(cond (else 1)(true 2))", "Misplaced 'else' clause.");
         assert_invalid("(cond)", "'cond' must have at least one clause.");
+        assert_invalid("(lambda)", "Expected '(' after 'lambda'.");
+        assert_invalid("(lambda ())", "Expected lambda body.");
     }
 
     #[test]
@@ -426,36 +476,6 @@ mod tests {
             Expr::Number(1.0),
             Expr::Bool(true)
         ]));
-    }
-
-    #[test]
-    fn parse_expressions() {
-        assert_parse("(one)", Expr::List(vec![Expr::Expression(Box::new(Expr::Identifier("one".to_string())), vec![])]));
-
-        assert_parse("(+ 1 2)", Expr::List(vec![Expr::Expression(Box::new(Expr::Identifier("+".to_string())), vec![
-            Expr::Number(1.0), Expr::Number(2.0)
-        ])]));
-
-        assert_parse("(and true false)", Expr::List(vec![Expr::And(vec![
-            Expr::Bool(true), Expr::Bool(false)
-        ])]));
-
-        assert_parse("(or true false)", Expr::List(vec![Expr::Or(vec![
-            Expr::Bool(true), Expr::Bool(false)
-        ])]));
-
-        assert_parse("(not true)", Expr::List(vec![Expr::Not(
-            Box::new(Expr::Bool(true))
-        )]));
-
-        assert_parse("(if true +)", Expr::List(vec![
-            Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Identifier("+".to_string())), None)
-        ]));
-
-        assert_parse("((if true +) 1)", Expr::List(vec![Expr::Expression(
-            Box::new(Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Identifier("+".to_string())), None)),
-            vec![Expr::Number(1.0)],
-        )]));
     }
 
     #[test]
@@ -572,6 +592,36 @@ mod tests {
     }
 
     #[test]
+    fn parse_expressions() {
+        assert_parse("(one)", Expr::List(vec![Expr::Expression(Box::new(Expr::Identifier("one".to_string())), vec![])]));
+
+        assert_parse("(+ 1 2)", Expr::List(vec![Expr::Expression(Box::new(Expr::Identifier("+".to_string())), vec![
+            Expr::Number(1.0), Expr::Number(2.0)
+        ])]));
+
+        assert_parse("(and true false)", Expr::List(vec![Expr::And(vec![
+            Expr::Bool(true), Expr::Bool(false)
+        ])]));
+
+        assert_parse("(or true false)", Expr::List(vec![Expr::Or(vec![
+            Expr::Bool(true), Expr::Bool(false)
+        ])]));
+
+        assert_parse("(not true)", Expr::List(vec![Expr::Not(
+            Box::new(Expr::Bool(true))
+        )]));
+
+        assert_parse("(if true +)", Expr::List(vec![
+            Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Identifier("+".to_string())), None)
+        ]));
+
+        assert_parse("((if true +) 1)", Expr::List(vec![Expr::Expression(
+            Box::new(Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Identifier("+".to_string())), None)),
+            vec![Expr::Number(1.0)],
+        )]));
+    }
+
+    #[test]
     fn parse_ifs() {
         assert_parse("(if true 1)",
                      Expr::List(vec![
@@ -591,20 +641,59 @@ mod tests {
 
     #[test]
     fn parse_lambdas() {
+        assert_parse("(lambda () ())",
+                     Expr::List(vec![
+                         Expr::Lambda(
+                             vec![],
+                             vec![Expr::Empty],
+                         )]),
+        );
         assert_parse("(lambda (x) (+ x 4))",
                      Expr::List(vec![
                          Expr::Lambda(
                              vec![Expr::Identifier("x".to_string())],
                              vec![
-                                 Expr::Expression(Box::new(
-                                     Expr::Identifier("+".to_string())),
-                                                  vec![
-                                                      Expr::Identifier("x".to_string()),
-                                                      Expr::Number(4.0)
-                                                  ],
+                                 Expr::Expression(
+                                     Box::new(
+                                         Expr::Identifier("+".to_string())
+                                     ),
+                                     vec![
+                                         Expr::Identifier("x".to_string()),
+                                         Expr::Number(4.0)
+                                     ],
                                  )
                              ],
                          )]),
+        );
+    }
+
+    #[test]
+    fn parse_lets() {
+//        env_logger::init();
+        assert_parse("(let () 1)",
+                     Expr::List(vec![
+                         Expr::List(vec![
+                             Expr::Lambda(
+                                 vec![],
+                                 vec![
+                                     Expr::Number(1.0)
+                                 ],
+                             ),
+                         ])
+                     ]),
+        );
+        assert_parse("(let ((x 3)) x)",
+                     Expr::List(vec![
+                         Expr::List(vec![
+                             Expr::Lambda(
+                                 vec![Expr::Identifier("x".to_string())],
+                                 vec![
+                                     Expr::Identifier("x".to_string())
+                                 ],
+                             ),
+                             Expr::Number(3.0)
+                         ])
+                     ]),
         );
     }
 
