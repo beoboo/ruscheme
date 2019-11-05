@@ -29,10 +29,10 @@ impl Evaluator {
             Expr::Callable(_) => Ok(expr.clone()),
             Expr::Identifier(s) => self.eval_identifier(s, env),
             Expr::If(predicate, then_branch, else_branch) => self.eval_if(predicate, then_branch, else_branch, env),
+            Expr::Lambda(_, _) => Ok(expr.clone()),
             Expr::List(list) => self.eval_list(list, env),
             Expr::Not(expr) => self.eval_not(expr, env),
             Expr::Number(_) => Ok(expr.clone()),
-            Expr::Lambda(_, _) => Ok(expr.clone()),
             Expr::Or(exprs) => self.eval_or(exprs, env),
             Expr::String(_) => Ok(expr.clone()),
             e => panic!("Unmapped expression: {}", e)
@@ -42,19 +42,11 @@ impl Evaluator {
     fn eval_expression(&self, expr: &Box<Expr>, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
         let expr = expr.as_ref();
 
-        let name = match expr {
-            Expr::Identifier(_) => Ok(expr.clone()),
-            _ => self.eval(expr, env)
-        };
-
-        let name = match name {
-            Ok(expr) => expr,
-            Err(e) => return Err(e),
-        };
-
-        match self.eval_function_call(name.to_string(), args, env) {
-            Ok(expr) => Ok(expr),
-            Err(e) => Err(e)
+        match self.eval(expr, env) {
+            Ok(Expr::Function(_, f)) => self.eval_function(f, args, env),
+            Ok(Expr::Callable(c)) => self.eval_callable(c, args, env),
+            Ok(Expr::Lambda(params, body)) => self.eval_lambda(args, params, body, env),
+            _ => Err(format!("Cannot execute: '{}'.", expr))
         }
     }
 
@@ -119,6 +111,41 @@ impl Evaluator {
         }
     }
 
+    fn eval_lambda(&self, args: &Vec<Expr>, params: Vec<Expr>, body: Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        let parent = env.clone();
+        let mut enclosing = Environment::new(Some(&parent));
+
+        if params.len() != args.len() {
+            return Err(format!(
+                "Wrong number of arguments (required: {}, given: {}).",
+                params.len(),
+                args.len()
+            ));
+        }
+
+        for (i, arg) in args.iter().enumerate() {
+            let param = match params.get(i) {
+                Some(p) => p,
+                None => return Err(format!("Wrong number of params"))
+            };
+
+            match self.eval(&arg, env) {
+                Ok(e) => enclosing.define(&param.to_string(), e),
+                Err(e) => return Err(e),
+            }
+        }
+
+        let mut res = Expr::Empty;
+
+        for expr in body {
+            res = match self.eval(&expr, &mut enclosing) {
+                Ok(res) => res,
+                Err(e) => return Err(e)
+            }
+        }
+        Ok(res)
+    }
+
     fn eval_list(&self, exprs: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
         let mut res = Expr::Empty;
 
@@ -152,24 +179,6 @@ impl Evaluator {
         Ok(Expr::Bool(false))
     }
 
-    fn eval_function_call(&self, name: String, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
-        let res = env.get(&name.to_string());
-
-        let expr = match res {
-            Ok(expr) => expr,
-            _ => return Err(format!("Undefined procedure: '{}'.", name))
-        };
-
-        let expr = expr.clone();
-
-        match expr {
-            Expr::Function(_, f) => self.eval_function(f, args, env),
-            Expr::Callable(c) => self.eval_callable(c, args, env),
-            Expr::Lambda(params, body) => self.eval_lambda(name, args, params, body, env),
-            _ => Err(format!("Cannot execute: '{}'.", expr))
-        }
-    }
-
     fn eval_function(&self, f: fn(Vec<Expr>) -> Result<Expr, String>, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
         let mut evaluated_args = Vec::new();
         for arg in args {
@@ -191,42 +200,6 @@ impl Evaluator {
         }
         let action = callable.action.as_ref().as_ref();
         action(evaluated_args)
-    }
-
-    fn eval_lambda(&self, name: String, args: &Vec<Expr>, params: Vec<Expr>, body: Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
-        let parent = env.clone();
-        let mut enclosing = Environment::new(Some(&parent));
-
-        if params.len() != args.len() {
-            return Err(format!(
-                "'{}': wrong number of arguments (required: {}, given: {}).",
-                name,
-                params.len(),
-                args.len()
-            ));
-        }
-
-        for (i, arg) in args.iter().enumerate() {
-            let param = match params.get(i) {
-                Some(p) => p,
-                None => return Err(format!("Wrong number of params"))
-            };
-
-            match self.eval(&arg, env) {
-                Ok(e) => enclosing.define(&param.to_string(), e),
-                Err(e) => return Err(e),
-            }
-        }
-
-        let mut res = Expr::Empty;
-
-        for expr in body {
-            res = match self.eval(&expr, &mut enclosing) {
-                Ok(res) => res,
-                Err(e) => return Err(e)
-            }
-        }
-        Ok(res)
     }
 }
 
@@ -273,8 +246,8 @@ mod tests {
         assert_invalid("(-)", "At least 1 argument required.".to_string());
         assert_invalid("(*)", "At least 1 argument required.".to_string());
         assert_invalid("(/)", "At least 2 arguments required.".to_string());
-        assert_invalid("(define (a x) x)(a)", "'a': wrong number of arguments (required: 1, given: 0).".to_string());
-        assert_invalid("(define (a x) x)(a 1 2)", "'a': wrong number of arguments (required: 1, given: 2).".to_string());
+        assert_invalid("(define (a x) x)(a)", "Wrong number of arguments (required: 1, given: 0).".to_string());
+        assert_invalid("(define (a x) x)(a 1 2)", "Wrong number of arguments (required: 1, given: 2).".to_string());
     }
 
     #[test]
@@ -333,7 +306,7 @@ mod tests {
     }
 
     #[test]
-    fn eval_procedures() {
+    fn eval_lambdas() {
         assert_eval("\
                     (define (one) 1)\
                     (one)",
@@ -343,6 +316,10 @@ mod tests {
                     (define (square x) (* x x))\
                     (square 2)",
                     Expr::Number(4.0),
+        );
+        assert_eval("\
+                    ((lambda (x) (+ x 4)) 1)",
+                    Expr::Number(5.0),
         );
     }
 

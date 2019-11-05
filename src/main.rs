@@ -12,7 +12,6 @@ use crate::error::Error;
 use crate::evaluator::*;
 use crate::lexer::*;
 use crate::parser::*;
-use env_logger;
 
 mod environment;
 mod error;
@@ -34,7 +33,6 @@ fn main() {
 fn repl() {
     let mut globals = Environment::global();
     let mut source = String::new();
-//    env_logger::init();
 
     let mut prompt = "> ";
     loop {

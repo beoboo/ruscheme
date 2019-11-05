@@ -161,7 +161,10 @@ impl Parser {
             TokenType::Define => self.definition(it),
             TokenType::If => self.if_then(it),
             TokenType::Identifier(i) => self.function_call(i, it),
-            TokenType::Lambda => self.lambda(it),
+            TokenType::Lambda => {
+                consume(TokenType::Paren('('), it, format!("Expected '(' after 'lambda'."))?;
+                self.lambda(it)
+            }
             TokenType::Not => self.not(it),
             TokenType::Or => self.or(it),
             t => return report_error(format!("Undefined form '{}'.", t))
@@ -330,11 +333,12 @@ impl Parser {
                 };
 
                 let expr = match token_type {
-                    TokenType::Identifier(i) => match self.function_call(i, it) {
-                        Ok(e) => e,
-                        Err(e) => return Err(e)
+                    TokenType::Identifier(i) => self.function_call(i, it)?,
+                    TokenType::Lambda => {
+                        consume(TokenType::Paren('('), it, format!("Expected '(' after 'lambda'."))?;
+                        self.lambda(it)?
                     }
-                    _ => return report_error(format!("Expected expression name."))
+                    t => return report_error(format!("Expected expression name (found '{}').", t))
                 };
 
                 consume(TokenType::Paren(')'), it, format!("Expected ')' after expression."))?;
@@ -351,25 +355,10 @@ impl Parser {
         let name = match advance(it) {
             Ok(TokenType::Identifier(i)) => Expr::Identifier(i),
             Ok(TokenType::EOF) => return Err(UnterminatedInput),
-            _ => return report_error(format!("Expected name."))
+            _ => return report_error(format!("Expected lambda name."))
         };
-        debug!("lambda '{}'", name);
 
-        let params = match self.build_expressions(it) {
-            Ok(list) => list,
-            Err(e) => return Err(e)
-        };
-        debug!("params '{:?}'", params);
-
-        consume(TokenType::Paren(')'), it, format!("Expected ')' after lambda parameters."))?;
-
-        let body = match self.build_expressions(it) {
-            Ok(exprs) => exprs,
-            Err(e) => return Err(e),
-        };
-        debug!("body '{:?}'", body);
-
-        let lambda = Expr::Lambda(params, body);
+        let lambda = self.lambda(it)?;
 
         Ok(Expr::Define(name.to_string(), Box::new(lambda)))
     }
@@ -377,20 +366,12 @@ impl Parser {
     fn lambda(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
         debug!("lambda");
 
-        consume(TokenType::Paren('('), it, format!("Expected '(' after 'lambda'."))?;
-
-        let params = match self.build_expressions(it) {
-            Ok(list) => list,
-            Err(e) => return Err(e)
-        };
+        let params = self.build_expressions(it)?;
         debug!("params '{:?}'", params);
 
         consume(TokenType::Paren(')'), it, format!("Expected ')' after lambda parameters."))?;
 
-        let body = match self.build_expressions(it) {
-            Ok(exprs) => exprs,
-            Err(e) => return Err(e),
-        };
+        let body = self.build_expressions(it)?;
         debug!("body '{:?}'", body);
 
         Ok(Expr::Lambda(params, body))
@@ -582,6 +563,20 @@ mod tests {
                          )
                      ]),
         );
+        assert_parse("(define square (lambda (x) (* x x)))",
+                     Expr::List(vec![
+                         Expr::Define(
+                             "square".to_string(),
+                             Box::new(Expr::Lambda(
+                                 vec![Expr::Identifier("x".to_string())],
+                                 vec![Expr::Expression(
+                                     Box::new(Expr::Identifier("*".to_string())),
+                                     vec![Expr::Identifier("x".to_string()), Expr::Identifier("x".to_string())],
+                                 )],
+                             )),
+                         )
+                     ]),
+        );
         assert_parse("(define (a) ((if true +) 1))",
                      Expr::List(vec![
                          Expr::Define(
@@ -665,7 +660,7 @@ mod tests {
         debug!("Parsing: '{}'", source);
         let lexer = Lexer::new();
         let tokens = lexer.lex(source).unwrap();
-        debug!("Tokens: '{:#?}'", tokens);
+//        debug!("Tokens: '{:#?}'", tokens);
         let parser = Parser::new();
 
         parser.parse(tokens)
