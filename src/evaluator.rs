@@ -1,6 +1,6 @@
 use crate::environment::Environment;
 use crate::error::Error;
-use crate::expr::{Expr, Callable};
+use crate::expr::{Callable, Expr};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Evaluator {}
@@ -129,19 +129,13 @@ impl Evaluator {
                 None => return Err(format!("Wrong number of params"))
             };
 
-            match self.eval(&arg, env) {
-                Ok(e) => enclosing.define(&param.to_string(), e),
-                Err(e) => return Err(e),
-            }
+            enclosing.define(&param.to_string(), self.eval(&arg, env)?);
         }
 
         let mut res = Expr::Empty;
 
         for expr in body {
-            res = match self.eval(&expr, &mut enclosing) {
-                Ok(res) => res,
-                Err(e) => return Err(e)
-            }
+            res = self.eval(&expr, &mut enclosing)?;
         }
         Ok(res)
     }
@@ -150,10 +144,7 @@ impl Evaluator {
         let mut res = Expr::Empty;
 
         for expr in exprs {
-            res = match self.eval(expr, env) {
-                Ok(expr) => expr,
-                Err(e) => return Err(e)
-            }
+            res = self.eval(expr, env)?;
         }
 
         Ok(res)
@@ -182,10 +173,7 @@ impl Evaluator {
     fn eval_function(&self, f: fn(Vec<Expr>) -> Result<Expr, String>, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
         let mut evaluated_args = Vec::new();
         for arg in args {
-            match self.eval(&arg, env) {
-                Ok(e) => evaluated_args.push(e),
-                Err(e) => return Err(e),
-            }
+            evaluated_args.push(self.eval(&arg, env)?);
         }
         f(evaluated_args)
     }
@@ -193,10 +181,7 @@ impl Evaluator {
     fn eval_callable(&self, callable: Callable, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
         let mut evaluated_args = Vec::new();
         for arg in args {
-            match self.eval(&arg, env) {
-                Ok(e) => evaluated_args.push(e),
-                Err(e) => return Err(e),
-            }
+            evaluated_args.push(self.eval(&arg, env)?);
         }
         let action = callable.action.as_ref().as_ref();
         action(evaluated_args)
