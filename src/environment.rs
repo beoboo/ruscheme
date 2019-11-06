@@ -4,6 +4,9 @@ use std::time::SystemTime;
 use crate::expr::{Expr, Callable, BoxedAction};
 use log::debug;
 use std::rc::Rc;
+use std::fmt;
+use std::fmt::{Formatter, Error};
+use std::borrow::BorrowMut;
 
 macro_rules! compare_floats {
     ($check_fn:expr) => {{
@@ -33,15 +36,44 @@ macro_rules! compare_floats {
 }
 
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Environment<'a> {
+    pub(crate) index: i32,
     parent: Option<&'a Environment<'a>>,
     keys: HashMap<String, Expr>,
 }
 
+impl fmt::Debug for Environment<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        if let Some(_) = self.parent {
+            writeln!(f, "")?;
+            writeln!(f, "Current ({}):", self.index)?;
+        }
+
+        for (k, e) in self.keys.iter() {
+            writeln!(f, "{}: {}", k, e)?;
+        }
+
+        if let Some(e) = self.parent {
+            writeln!(f, "")?;
+            writeln!(f, "Parent: ")?;
+            writeln!(f, "{:?}", e)?;
+        }
+
+        Ok(())
+    }
+}
+
 impl Environment<'_> {
     pub fn new<'a>(parent: Option<&'a Environment>) -> Environment<'a> {
+        let index = match parent {
+            Some(p) => p.index + 1,
+            _ => 0
+        };
+        debug!("New environment {}", index);
+
         Environment {
+            index: index,
             parent,
             keys: HashMap::new(),
         }
@@ -60,6 +92,7 @@ impl Environment<'_> {
         environment.define_func(">=", compare_floats!(|a, b| a >= b));
         environment.define_func("remainder", remainder());
         environment.define_func("display", display());
+        environment.define_func("newline", |_| { println!(); Ok(Expr::None) });
 
         let now = SystemTime::now();
 
@@ -78,23 +111,29 @@ impl Environment<'_> {
     }
 
     pub fn define(&mut self, key: &str, expr: Expr) {
+        debug!("D{} {}: {}", self.index, key, expr);
         self.keys.insert(key.to_string(), expr);
     }
 
     pub fn get(&self, key: &str) -> Result<&Expr, String> {
-        debug!("Looking for {}", key);
+        debug!("Looking for '{}' in {}", key, self.index);
         match self.keys.get(key) {
             Some(v) => {
-                debug!("Found");
+//                debug!("Found");
                 Ok(v)
             },
             None => {
                 if let Some(p) = self.parent {
-                    debug!("Looking for parent");
+//                    debug!("{:?}", self);
+                    debug!("Looking for env {}", self.index - 1);
                     p.get(key)
                 } else {
-                    debug!("Looking for parent");
-                    Err(format!("{} not found", key))
+//                    debug!("***");
+//                    debug!("'{}' not found ", key);
+//                    for (k, e) in self.keys.iter() {
+//                        debug!("{}: {}", k, e);
+//                    }
+                    Err(format!("'{}' not found", key))
                 }
             }
         }
@@ -237,7 +276,7 @@ mod tests {
     #[test]
     fn check_globals() {
         let environment = Environment::global();
-        assert_that!(environment.keys.len(), equal_to(12));
+        assert_that!(environment.keys.len(), equal_to(13));
     }
 
     #[test]

@@ -1,6 +1,7 @@
 use crate::environment::Environment;
 use crate::error::Error;
 use crate::expr::{Callable, Expr};
+use log::debug;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Evaluator {}
@@ -18,6 +19,7 @@ impl Evaluator {
     }
 
     fn eval(&self, expr: &Expr, env: &mut Environment) -> Result<Expr, String> {
+        debug!("Eval {} {:?} (env: {})", expr, expr, env.index);
         match expr {
             Expr::And(exprs) => self.eval_and(exprs, env),
             Expr::Bool(_) => Ok(expr.clone()),
@@ -29,7 +31,10 @@ impl Evaluator {
             Expr::Callable(_) => Ok(expr.clone()),
             Expr::Identifier(s) => self.eval_identifier(s, env),
             Expr::If(predicate, then_branch, else_branch) => self.eval_if(predicate, then_branch, else_branch, env),
-            Expr::Lambda(_, _) => Ok(expr.clone()),
+            Expr::Lambda(params, body) => {
+                debug!("cloned lambda (env: {})", env.index);
+                Ok(expr.clone())
+            },
             Expr::List(list) => self.eval_list(list, env),
             Expr::Not(expr) => self.eval_not(expr, env),
             Expr::Number(_) => Ok(expr.clone()),
@@ -40,14 +45,20 @@ impl Evaluator {
     }
 
     fn eval_expression(&self, expr: &Box<Expr>, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        debug!("expression");
         let expr = expr.as_ref();
 
-        match self.eval(expr, env) {
+        let res = match self.eval(expr, env) {
             Ok(Expr::Function(_, f)) => self.eval_function(f, args, env),
             Ok(Expr::Callable(c)) => self.eval_callable(c, args, env),
             Ok(Expr::Lambda(params, body)) => self.eval_lambda(args, params, body, env),
+            Ok(e) => Err(format!("Cannot execute: '{}'.", e)),
             _ => Err(format!("Cannot execute: '{}'.", expr))
-        }
+        };
+
+        debug!("end expression");
+
+        res
     }
 
     fn eval_and(&self, exprs: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
@@ -112,9 +123,7 @@ impl Evaluator {
     }
 
     fn eval_lambda(&self, args: &Vec<Expr>, params: Vec<Expr>, body: Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
-        let parent = env.clone();
-        let mut enclosing = Environment::new(Some(&parent));
-
+        debug!("eval lambda");
         if params.len() != args.len() {
             return Err(format!(
                 "Wrong number of arguments (required: {}, given: {}).",
@@ -123,20 +132,26 @@ impl Evaluator {
             ));
         }
 
+        let mut parent = env.clone();
+        let mut enclosing = Environment::new(Some(env));
+
         for (i, arg) in args.iter().enumerate() {
             let param = match params.get(i) {
                 Some(p) => p,
                 None => return Err(format!("Wrong number of params"))
             };
 
-            enclosing.define(&param.to_string(), self.eval(&arg, env)?);
+            enclosing.define(&param.to_string(), self.eval(&arg, &mut parent)?);
         }
+
+        debug!("Environment {:?}", enclosing);
 
         let mut res = Expr::Empty;
 
         for expr in body {
             res = self.eval(&expr, &mut enclosing)?;
         }
+        debug!("Res {:?}", res);
         Ok(res)
     }
 
@@ -171,6 +186,7 @@ impl Evaluator {
     }
 
     fn eval_function(&self, f: fn(Vec<Expr>) -> Result<Expr, String>, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        debug!("eval function");
         let mut evaluated_args = Vec::new();
         for arg in args {
             evaluated_args.push(self.eval(&arg, env)?);
@@ -179,6 +195,7 @@ impl Evaluator {
     }
 
     fn eval_callable(&self, callable: Callable, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+        debug!("eval callable");
         let mut evaluated_args = Vec::new();
         for arg in args {
             evaluated_args.push(self.eval(&arg, env)?);
@@ -292,19 +309,31 @@ mod tests {
 
     #[test]
     fn eval_lambdas() {
-        assert_eval("\
-                    (define (one) 1)\
-                    (one)",
-                    Expr::Number(1.0),
-        );
+        env_logger::init();
+//        assert_eval("\
+//                    (define (one) 1)\
+//                    (one)",
+//                    Expr::Number(1.0),
+//        );
+//        assert_eval("\
+//                    (define (square x) (* x x))\
+//                    (square 2)",
+//                    Expr::Number(4.0),
+//        );
+//        assert_eval("\
+//                    ((lambda (x) (+ x 4)) 1)",
+//                    Expr::Number(5.0),
+//        );
+//        assert_eval("\
+//                    (define x (lambda () 1))\
+//                    (x)",
+//                    Expr::Number(1.0),
+//        );
         assert_eval("\
                     (define (square x) (* x x))\
-                    (square 2)",
+                    (define (wrapper f) (lambda (x) (f x)))\
+                    ((wrapper square) 2)",
                     Expr::Number(4.0),
-        );
-        assert_eval("\
-                    ((lambda (x) (+ x 4)) 1)",
-                    Expr::Number(5.0),
         );
     }
 
@@ -365,7 +394,7 @@ mod tests {
             Err(e) => return Err(e)
         };
 
-        println!("{:?}", expr);
+//        println!("{:#?}", expr);
 
         let res = match evaluator.evaluate(&expr, globals) {
             Ok(expr) => Some(expr),
