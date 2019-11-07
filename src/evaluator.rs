@@ -354,11 +354,16 @@ mod tests {
 
     #[test]
     fn eval_lets() {
-//        env_logger::init();
+        env_logger::init();
+//        assert_eval("\
+//                    (define x 1)\
+//                    (let () (+ x 5))",
+//                    Expr::Number(6.0),
+//        );
         assert_eval("\
                     (define x 1)\
-                    (let () (+ x 5))",
-                    Expr::Number(6.0),
+                    (let ((a x)) a)",
+                    Expr::Number(1.0),
         );
     }
 

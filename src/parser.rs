@@ -269,7 +269,7 @@ impl Parser {
                     exprs.push(expr);
                 }
                 t => {
-                    debug!("Found {}", t)
+                    return report_error(format!("Found unexpected token '{}'", t))
                 }
             };
         }
