@@ -365,7 +365,6 @@ mod tests {
         assert_eval("(/ 10 5)", Expr::Number(2.0));
         assert_eval("(+ 2.7 10)", Expr::Number(12.7));
         assert_eval("(+ 1)", Expr::Number(1.0));
-        assert_eval("(+1)", Expr::Number(1.0));
         assert_eval("(remainder 0 2)", Expr::Number(0.0));
         assert_eval("(remainder 1 2)", Expr::Number(1.0));
         assert_eval("(remainder (+ 1) 2)", Expr::Number(1.0));

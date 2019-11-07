@@ -36,7 +36,7 @@ impl Evaluator {
                 debug!("cloned lambda (env: {}:{})", env.index, if let Some(enclosing) = enclosing { enclosing.index } else { 0 });
                 Ok(Expr::Lambda(params.clone(), body.clone(), Some(env.clone())))
             }
-            Expr::List(list) => Ok(expr.clone()),
+            Expr::List(_) => Ok(expr.clone()),
             Expr::Not(expr) => self.eval_not(expr, env),
             Expr::Number(_) => Ok(expr.clone()),
             Expr::Or(exprs) => self.eval_or(exprs, env),

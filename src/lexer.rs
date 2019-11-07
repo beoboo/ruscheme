@@ -21,14 +21,8 @@ impl Lexer {
 
         while let Some(&c) = it.peek() {
             let res = match c {
-                '0'..='9' => number(&mut it),
-                '+' => symbol(TokenType::Plus, &mut it),
-                '-' => symbol(TokenType::Minus, &mut it),
-                '*' => symbol(TokenType::Star, &mut it),
-                '/' => symbol(TokenType::Slash, &mut it),
-                '=' => symbol(TokenType::Equal, &mut it),
-                '>' => check('=', TokenType::Greater, TokenType::GreaterEqual, &mut it),
-                '<' => check('=', TokenType::Less, TokenType::LessEqual, &mut it),
+                '+' | '-' | '0'..='9' => number(&mut it),
+                '*' | '/' | '=' | '<' | '>' => symbol(&mut it),
                 '(' | ')' => paren(c, &mut it),
                 ' ' | '\t' => {
                     it.next();
@@ -90,6 +84,19 @@ fn identifier(it: &mut PeekableChar) -> Result<TokenType, Error> {
 }
 
 fn number(it: &mut PeekableChar) -> Result<TokenType, Error> {
+    let c = peek(it);
+    let sign = match c {
+        '+' | '-' => {
+            advance(it);
+            c
+        }
+        _ => '+'
+    };
+
+    if !is_digit(peek(it)) {
+        return Ok(TokenType::Identifier(sign.to_string()))
+    }
+
     let mut number = String::new();
 
     while is_digit(peek(it)) {
@@ -104,7 +111,10 @@ fn number(it: &mut PeekableChar) -> Result<TokenType, Error> {
         }
     }
 
-    let number = number.parse::<f64>().unwrap();
+    let mut number = number.parse::<f64>().unwrap();
+    if sign == '-' {
+        number = -number
+    }
 
     Ok(TokenType::Number(number))
 }
@@ -134,24 +144,20 @@ fn string(it: &mut PeekableChar) -> Result<TokenType, Error> {
     Ok(TokenType::String(string))
 }
 
-fn is_at_end(it: &mut Peekable<Chars>) -> bool {
-    peek(it) == '\0'
-}
+fn symbol(it: &mut PeekableChar) -> Result<TokenType, Error> {
+    let c = advance(it);
+    let mut op = c.to_string();
 
-fn symbol(token_type: TokenType, it: &mut PeekableChar) -> Result<TokenType, Error> {
-    advance(it);
-
-    Ok(token_type)
-}
-
-fn check(ch: char, first: TokenType, second: TokenType, it: &mut PeekableChar) -> Result<TokenType, Error> {
-    advance(it);
-
-    if peek(it) == ch {
-        Ok(second)
-    } else {
-        Ok(first)
+    match c {
+        '>' | '<' => {
+            if peek(it) == '=' {
+                op.push(advance(it));
+            }
+        }
+        _ => {}
     }
+
+    Ok(TokenType::Identifier(op))
 }
 
 fn is_digit(ch: char) -> bool {
@@ -180,6 +186,10 @@ fn advance(it: &mut PeekableChar) -> char {
         Some(t) => t,
         None => '\0'
     }
+}
+
+fn is_at_end(it: &mut Peekable<Chars>) -> bool {
+    peek(it) == '\0'
 }
 
 
@@ -230,23 +240,11 @@ mod tests {
     }
 
     #[test]
-    fn lex_symbols() {
-        assert_lex("+ - * / < > =", vec![
-            TokenType::Plus,
-            TokenType::Minus,
-            TokenType::Star,
-            TokenType::Slash,
-            TokenType::Less,
-            TokenType::Greater,
-            TokenType::Equal,
-        ]);
-    }
-
-    #[test]
     fn lex_numbers() {
-        assert_lex("123 4.56\n", vec![
+        assert_lex("123 -4.56 +789\n", vec![
             TokenType::Number(123.0),
-            TokenType::Number(4.56),
+            TokenType::Number(-4.56),
+            TokenType::Number(789.0),
         ]);
     }
 
@@ -264,7 +262,11 @@ mod tests {
 
     #[test]
     fn lex_identifiers() {
-        assert_lex("plus_one", vec![
+        assert_lex("+ - * / plus_one", vec![
+            TokenType::Identifier("+".to_string()),
+            TokenType::Identifier("-".to_string()),
+            TokenType::Identifier("*".to_string()),
+            TokenType::Identifier("/".to_string()),
             TokenType::Identifier("plus_one".to_string()),
         ]);
     }
