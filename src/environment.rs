@@ -1,12 +1,12 @@
 use std::collections::HashMap;
+use std::fmt;
+use std::fmt::{Error, Formatter};
+use std::rc::Rc;
 use std::time::SystemTime;
 
-use crate::expr::{Expr, Callable, BoxedAction};
 use log::debug;
-use std::rc::Rc;
-use std::fmt;
-use std::fmt::{Formatter, Error};
-use std::borrow::BorrowMut;
+
+use crate::expr::{BoxedAction, Callable, Expr};
 
 macro_rules! compare_floats {
     ($check_fn:expr) => {{
@@ -37,13 +37,13 @@ macro_rules! compare_floats {
 
 
 #[derive(PartialEq, Clone)]
-pub struct Environment<'a> {
+pub struct Environment {
     pub(crate) index: i32,
-    parent: Option<&'a Environment<'a>>,
+    parent: Option<Box<Environment>>,
     keys: HashMap<String, Expr>,
 }
 
-impl fmt::Debug for Environment<'_> {
+impl fmt::Debug for Environment {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         if let Some(_) = self.parent {
             writeln!(f, "")?;
@@ -54,7 +54,7 @@ impl fmt::Debug for Environment<'_> {
             writeln!(f, "{}: {}", k, e)?;
         }
 
-        if let Some(e) = self.parent {
+        if let Some(e) = &self.parent {
             writeln!(f, "")?;
             writeln!(f, "Parent: ")?;
             writeln!(f, "{:?}", e)?;
@@ -64,22 +64,23 @@ impl fmt::Debug for Environment<'_> {
     }
 }
 
-impl Environment<'_> {
-    pub fn new<'a>(parent: Option<&'a Environment>) -> Environment<'a> {
-        let index = match parent {
-            Some(p) => p.index + 1,
-            _ => 0
+impl Environment {
+    pub fn new(parent: Option<Environment>) -> Environment {
+        let (index, parent) = match parent {
+            Some(p) => (p.index + 1, Some(Box::new(p))),
+            _ => (0, None)
         };
+
         debug!("New environment {}", index);
 
         Environment {
-            index: index,
+            index,
             parent,
             keys: HashMap::new(),
         }
     }
 
-    pub fn global<'a>() -> Environment<'a> {
+    pub fn global() -> Environment {
         let mut environment = Environment::new(None);
         environment.define_func("+", add());
         environment.define_func("-", sub());
@@ -92,12 +93,14 @@ impl Environment<'_> {
         environment.define_func(">=", compare_floats!(|a, b| a >= b));
         environment.define_func("remainder", remainder());
         environment.define_func("display", display());
-        environment.define_func("newline", |_| { println!(); Ok(Expr::None) });
+        environment.define_func("newline", |_| {
+            println!();
+            Ok(Expr::None)
+        });
 
         let now = SystemTime::now();
 
         environment.define_callable("runtime", Box::new(move |args| runtime(now, args)));
-//        environment.define_func("random", random());
 
         environment
     }
@@ -111,7 +114,7 @@ impl Environment<'_> {
     }
 
     pub fn define(&mut self, key: &str, expr: Expr) {
-        debug!("D{} {}: {}", self.index, key, expr);
+//        debug!("D{} {}: {}", self.index, key, expr);
         self.keys.insert(key.to_string(), expr);
     }
 
@@ -121,9 +124,9 @@ impl Environment<'_> {
             Some(v) => {
 //                debug!("Found");
                 Ok(v)
-            },
+            }
             None => {
-                if let Some(p) = self.parent {
+                if let Some(p) = &self.parent {
 //                    debug!("{:?}", self);
                     debug!("Looking for env {}", self.index - 1);
                     p.get(key)
@@ -240,7 +243,7 @@ fn display() -> fn(Vec<Expr>) -> Result<Expr, String> {
 
 fn runtime(start: SystemTime, _args: Vec<Expr>) -> Result<Expr, String> {
     let now = SystemTime::now();
-    Ok(Expr::Number(now.duration_since(start).unwrap().as_secs_f64()))
+    Ok(Expr::Number(now.duration_since(start).unwrap().as_micros() as f64))
 }
 
 fn parse_floats(args: Vec<Expr>) -> Result<Vec<f64>, String> {
@@ -303,7 +306,7 @@ mod tests {
         let mut environment1 = Environment::new(None);
         environment1.define("a", Expr::Number(123.0));
 
-        let environment2 = Environment::new(Some(&environment1));
+        let environment2 = Environment::new(Some(environment1));
         assert_that!(environment2.get("a").unwrap(), equal_to(&Expr::Number(123.0)));
     }
 

@@ -6,4 +6,4 @@
 
 (define (square x) (* x x))
 
-((average-damp square) 10)
+(display ((average-damp square) 10))

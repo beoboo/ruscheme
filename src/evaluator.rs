@@ -1,7 +1,8 @@
+use log::debug;
+
 use crate::environment::Environment;
 use crate::error::Error;
 use crate::expr::{Callable, Expr};
-use log::debug;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Evaluator {}
@@ -19,7 +20,7 @@ impl Evaluator {
     }
 
     fn eval(&self, expr: &Expr, env: &mut Environment) -> Result<Expr, String> {
-        debug!("Eval {} {:?} (env: {})", expr, expr, env.index);
+        debug!("Eval '{}' (env: {})", expr, env.index);
         match expr {
             Expr::And(exprs) => self.eval_and(exprs, env),
             Expr::Bool(_) => Ok(expr.clone()),
@@ -31,10 +32,10 @@ impl Evaluator {
             Expr::Callable(_) => Ok(expr.clone()),
             Expr::Identifier(s) => self.eval_identifier(s, env),
             Expr::If(predicate, then_branch, else_branch) => self.eval_if(predicate, then_branch, else_branch, env),
-            Expr::Lambda(params, body) => {
-                debug!("cloned lambda (env: {})", env.index);
-                Ok(expr.clone())
-            },
+            Expr::Lambda(params, body, enclosing) => {
+                debug!("cloned lambda (env: {}:{})", env.index, if let Some(enclosing) = enclosing { enclosing.index } else { 0 });
+                Ok(Expr::Lambda(params.clone(), body.clone(), Some(env.clone())))
+            }
             Expr::List(list) => self.eval_list(list, env),
             Expr::Not(expr) => self.eval_not(expr, env),
             Expr::Number(_) => Ok(expr.clone()),
@@ -45,13 +46,17 @@ impl Evaluator {
     }
 
     fn eval_expression(&self, expr: &Box<Expr>, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
-        debug!("expression");
+        debug!("eval_expression (env: {})", env.index);
         let expr = expr.as_ref();
 
         let res = match self.eval(expr, env) {
             Ok(Expr::Function(_, f)) => self.eval_function(f, args, env),
             Ok(Expr::Callable(c)) => self.eval_callable(c, args, env),
-            Ok(Expr::Lambda(params, body)) => self.eval_lambda(args, params, body, env),
+            Ok(Expr::Lambda(params, body, enclosing)) => {
+                let mut enclosing = if let Some(enclosing) = enclosing { enclosing.clone() } else { env.clone() };
+                debug!("Env: {}:{}", env.index, enclosing.index);
+                self.eval_lambda(args, params, body, &mut enclosing)
+            }
             Ok(e) => Err(format!("Cannot execute: '{}'.", e)),
             _ => Err(format!("Cannot execute: '{}'.", expr))
         };
@@ -123,7 +128,7 @@ impl Evaluator {
     }
 
     fn eval_lambda(&self, args: &Vec<Expr>, params: Vec<Expr>, body: Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
-        debug!("eval lambda");
+        debug!("eval_lambda");
         if params.len() != args.len() {
             return Err(format!(
                 "Wrong number of arguments (required: {}, given: {}).",
@@ -133,7 +138,7 @@ impl Evaluator {
         }
 
         let mut parent = env.clone();
-        let mut enclosing = Environment::new(Some(env));
+        let mut enclosing = Environment::new(Some(env.clone()));
 
         for (i, arg) in args.iter().enumerate() {
             let param = match params.get(i) {
@@ -272,6 +277,7 @@ mod tests {
                                   Expr::Identifier("x".to_string()),
                                   Expr::Identifier("x".to_string())
                               ]))],
+                              None,
                           ),
         );
     }
@@ -284,13 +290,22 @@ mod tests {
                     b",
                     Expr::Number(1.0),
         );
-        assert_eval("\
+
+        let mut globals = Environment::global();
+
+        let res = eval("\
                     (define (a) (+ 1))\
-                    a",
-                    Expr::Lambda(vec![], vec![
-                        Expr::Expression(Box::new(Expr::Identifier("+".to_string())), vec![Expr::Number(1.0)])
-                    ]),
-        );
+                    a", &mut globals);
+
+        assert_that!(res.unwrap(), equal_to(
+                     Expr::Lambda(vec![],
+                                  vec![
+                                      Expr::Expression(Box::new(Expr::Identifier("+".to_string())), vec![Expr::Number(1.0)
+                                      ])
+                                  ],
+                                  Some(globals.clone()),
+                     ),
+        ));
     }
 
     #[test]
@@ -310,25 +325,25 @@ mod tests {
     #[test]
     fn eval_lambdas() {
         env_logger::init();
-//        assert_eval("\
-//                    (define (one) 1)\
-//                    (one)",
-//                    Expr::Number(1.0),
-//        );
-//        assert_eval("\
-//                    (define (square x) (* x x))\
-//                    (square 2)",
-//                    Expr::Number(4.0),
-//        );
-//        assert_eval("\
-//                    ((lambda (x) (+ x 4)) 1)",
-//                    Expr::Number(5.0),
-//        );
-//        assert_eval("\
-//                    (define x (lambda () 1))\
-//                    (x)",
-//                    Expr::Number(1.0),
-//        );
+        assert_eval("\
+                    (define (one) 1)\
+                    (one)",
+                    Expr::Number(1.0),
+        );
+        assert_eval("\
+                    (define (square x) (* x x))\
+                    (square 2)",
+                    Expr::Number(4.0),
+        );
+        assert_eval("\
+                    ((lambda (x) (+ x 4)) 1)",
+                    Expr::Number(5.0),
+        );
+        assert_eval("\
+                    (define x (lambda () 1))\
+                    (x)",
+                    Expr::Number(1.0),
+        );
         assert_eval("\
                     (define (square x) (* x x))\
                     (define (wrapper f) (lambda (x) (f x)))\
@@ -380,6 +395,7 @@ mod tests {
     }
 
     fn eval(source: &str, globals: &mut Environment) -> Result<Expr, Error> {
+        debug!("Source: {}", source);
         let lexer = Lexer::new();
         let parser = Parser::new();
         let evaluator = Evaluator::new();

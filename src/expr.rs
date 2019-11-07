@@ -1,6 +1,7 @@
 use std::fmt;
 use std::rc::Rc;
 use std::fmt::{Formatter, Error};
+use crate::environment::Environment;
 
 pub type Action = dyn Fn(Vec<Expr>) -> Result<Expr, String>;
 pub type BoxedAction = Box<Action>;
@@ -51,7 +52,7 @@ pub enum Expr {
     Number(f64),
     Or(Vec<Expr>),
     Predicate(Box<Expr>, Vec<Expr>),
-    Lambda(Vec<Expr>, Vec<Expr>),
+    Lambda(Vec<Expr>, Vec<Expr>, Option<Environment>),
     String(String),
 }
 
@@ -100,13 +101,13 @@ impl fmt::Display for Expr {
                     None => write!(f, "(if {} {})", predicate, then_branch)
                 }
             }
+            Expr::Lambda(params, body, _) => write!(f, "lambda ({}) {}", build_str(params), build_str(body)),
             Expr::List(exprs) => write!(f, "[{}]", build_str(exprs)),
             Expr::None => write!(f, "No result"),
             Expr::Not(expr) => write!(f, "(not {})", expr),
             Expr::Number(n) => write!(f, "{}", n),
             Expr::Or(exprs) => write!(f, "(or {})", build_str(exprs)),
             Expr::Predicate(test, exprs) => write!(f, "({} {})", test, build_str(exprs)),
-            Expr::Lambda(_, _) => write!(f, "lambda"),
             Expr::String(s) => write!(f, "{}", s),
         }
     }
@@ -115,7 +116,7 @@ impl fmt::Display for Expr {
 fn build_str(exprs: &Vec<Expr>) -> String {
     let res = exprs.iter().map(|e| e.to_string());
     let res: Vec<String> = res.collect();
-    res.join(",")
+    res.join(" ")
 }
 
 

@@ -285,7 +285,7 @@ impl Parser {
         let body = self.build_expressions(it)?;
         debug!("body '{:?}'", body);
 
-        let lambda = Expr::Lambda(args, body);
+        let lambda = Expr::Lambda(args, body, None);
 
         Ok(Expr::Expression(Box::new(lambda), exprs))
     }
@@ -378,7 +378,7 @@ impl Parser {
         let body = self.build_expressions(it)?;
         debug!("body '{:?}'", body);
 
-        Ok(Expr::Lambda(params, body))
+        Ok(Expr::Lambda(params, body, None))
     }
 }
 
@@ -524,6 +524,7 @@ mod tests {
                              Box::new(Expr::Lambda(
                                  vec![],
                                  vec![Expr::Number(1.0)],
+                                 None
                              )),
                          )
                      ]),
@@ -538,6 +539,7 @@ mod tests {
                                      Box::new(Expr::Identifier("*".to_string())),
                                      vec![Expr::Identifier("x".to_string()), Expr::Identifier("x".to_string())],
                                  )],
+                                 None
                              )),
                          )
                      ]),
@@ -552,6 +554,7 @@ mod tests {
                                      Box::new(Expr::Identifier("*".to_string())),
                                      vec![Expr::Identifier("x".to_string()), Expr::Identifier("x".to_string())],
                                  )],
+                                 None
                              )),
                          )
                      ]),
@@ -571,6 +574,7 @@ mod tests {
                                                       vec![Expr::Number(1.0)],
                                      )
                                  ],
+                                 None
                              )),
                          )
                      ]),
@@ -646,6 +650,7 @@ mod tests {
                          Expr::Lambda(
                              vec![],
                              vec![Expr::Empty],
+                             None
                          )]),
         );
         assert_parse("(lambda (x) (+ x 4))",
@@ -663,6 +668,7 @@ mod tests {
                                      ],
                                  )
                              ],
+                             None
                          )]),
         );
     }
@@ -677,6 +683,7 @@ mod tests {
                              vec![
                                  Expr::Number(1.0)
                              ],
+                             None
                          )),
                                           vec![])
                      ]),
@@ -688,6 +695,7 @@ mod tests {
                              vec![
                                  Expr::Identifier("x".to_string())
                              ],
+                             None
                          )),
                                           vec![Expr::Number(3.0)])
                      ]),
@@ -699,6 +707,7 @@ mod tests {
                              vec![
                                  Expr::Identifier("x".to_string())
                              ],
+                             None
                          )),
                                           vec![])
                      ]),
