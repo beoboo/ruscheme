@@ -91,8 +91,11 @@ impl Environment {
         environment.define_func(">", compare_floats!(|a, b| a > b));
         environment.define_func("<=", compare_floats!(|a, b| a <= b));
         environment.define_func(">=", compare_floats!(|a, b| a >= b));
-        environment.define_func("remainder", remainder());
+        environment.define_func("car", car());
+        environment.define_func("cdr", cdr());
+        environment.define_func("cons", cons());
         environment.define_func("display", display());
+        environment.define_func("remainder", remainder());
         environment.define_func("newline", |_| {
             println!();
             Ok(Expr::None)
@@ -235,9 +238,46 @@ fn display() -> fn(Vec<Expr>) -> Result<Expr, String> {
         }
 
         let arg = args.first().unwrap();
-        println!("{}", arg);
+        print!("{}", arg);
 
         Ok(Expr::None)
+    }
+}
+
+fn car() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() != 1 {
+            return Err(format!("Exactly 1 argument required."));
+        }
+
+        match &args[0] {
+            Expr::List(exprs) => Ok(exprs[0].clone()),
+            e => return Err(format!("Expected list (found: {})", e))
+        }
+    }
+}
+
+fn cdr() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() != 1 {
+            return Err(format!("Exactly 1 argument required."));
+        }
+
+        match &args[0] {
+            Expr::List(exprs) => Ok(exprs[1].clone()),
+            e => return Err(format!("Expected list (found: {})", e))
+//            _ => return Err(format!("Expected list"))
+        }
+    }
+}
+
+fn cons() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() != 2 {
+            return Err(format!("Exactly 2 arguments required."));
+        }
+
+        Ok(Expr::List(args))
     }
 }
 
@@ -279,7 +319,7 @@ mod tests {
     #[test]
     fn check_globals() {
         let environment = Environment::global();
-        assert_that!(environment.keys.len(), equal_to(13));
+        assert_that!(environment.keys.len(), equal_to(16));
     }
 
     #[test]
@@ -330,6 +370,9 @@ mod tests {
         assert_eval("(remainder 1 2)", Expr::Number(1.0));
         assert_eval("(remainder (+ 1) 2)", Expr::Number(1.0));
         assert_eval("(display \"test\")", Expr::None);
+        assert_eval("(cons 1 2)", Expr::List(vec![Expr::Number(1.0), Expr::Number(2.0)]));
+        assert_eval("(car (cons 1 2))", Expr::Number(1.0));
+        assert_eval("(cdr (cons 1 2))", Expr::Number(2.0));
     }
 
     #[test]
@@ -344,7 +387,6 @@ mod tests {
         assert_invalid("(remainder 1 2 3)", "Exactly 2 arguments required.".to_string());
         assert_invalid("(remainder 1 0)", "Division by zero.".to_string());
     }
-
 
     fn assert_eval(expr: &str, expected: Expr) {
         let mut globals = Environment::global();
@@ -365,25 +407,16 @@ mod tests {
         let parser = Parser::new();
         let evaluator = Evaluator::new();
 
-        let tokens = match lexer.lex(source) {
-            Ok(tokens) => tokens,
-            Err(e) => return Err(e)
-        };
+        let tokens = lexer.lex(source)?;
+        let exprs = parser.parse(tokens)?;
 
-        let expr = match parser.parse(tokens) {
-            Ok(e) => e,
-            Err(e) => return Err(e)
-        };
+        let mut res = Err(Error::Evaluator(format!("No expressions to eval.")));
 
-        let res = match evaluator.evaluate(&expr, globals) {
-            Ok(expr) => Some(expr),
-            Err(e) => return Err(e)
-        };
-
-        match res {
-            Some(result) => Ok(result),
-            None => Err(Error::Evaluator(format!("No expressions to eval.")))
+        for expr in exprs {
+            res = evaluator.evaluate(&expr, globals);
         }
+
+        res
     }
 }
 

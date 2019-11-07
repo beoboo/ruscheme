@@ -19,7 +19,7 @@ impl Parser {
         Parser {}
     }
 
-    pub fn parse(&self, tokens: Vec<Token>) -> Result<Expr, Error> {
+    pub fn parse(&self, tokens: Vec<Token>) -> Result<Vec<Expr>, Error> {
         if tokens.len() == 0 {
             return report_error("No tokens available.");
         }
@@ -31,13 +31,10 @@ impl Parser {
             return report_error("Unexpected EOF.");
         }
 
-        match self.expression_list(&mut it) {
-            Ok(expr) => Ok(expr),
-            Err(e) => Err(e)
-        }
+        self.expression_list(&mut it)
     }
 
-    fn expression_list(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
+    fn expression_list(&self, it: &mut PeekableToken) -> Result<Vec<Expr>, Error> {
         let mut exprs = Vec::new();
         loop {
             if peek(it) == TokenType::EOF {
@@ -48,10 +45,7 @@ impl Parser {
             exprs.push(expr);
         }
 
-        match exprs.len() {
-            0 => Ok(Expr::Empty),
-            _ => Ok(Expr::List(exprs))
-        }
+        Ok(exprs)
     }
 
     fn primitive(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
@@ -449,9 +443,7 @@ mod tests {
 
     #[test]
     fn parse_empty_list() {
-        let expr = parse("()").unwrap();
-
-        assert_that!(expr, equal_to(Expr::List(vec![Expr::Empty])));
+        assert_parse("()", Expr::Empty);
     }
 
     #[test]
@@ -466,210 +458,195 @@ mod tests {
 
     #[test]
     fn parse_primitives() {
-        assert_parse("123", Expr::List(vec![Expr::Number(123.0)]));
-        assert_parse("true", Expr::List(vec![Expr::Bool(true)]));
-        assert_parse("false", Expr::List(vec![Expr::Bool(false)]));
-        assert_parse("\"string\"", Expr::List(vec![Expr::String("string".to_string())]));
-        assert_parse("+", Expr::List(vec![Expr::Identifier("+".to_string())]));
-        assert_parse("+ 1 true", Expr::List(vec![
+        assert_parse("123", Expr::Number(123.0));
+        assert_parse("-123", Expr::Number(-123.0));
+        assert_parse("true", Expr::Bool(true));
+        assert_parse("false", Expr::Bool(false));
+        assert_parse("\"string\"", Expr::String("string".to_string()));
+        assert_parse("+", Expr::Identifier("+".to_string()));
+        assert_parse_list("+ 1 true", vec![
             Expr::Identifier("+".to_string()),
             Expr::Number(1.0),
             Expr::Bool(true)
-        ]));
+        ]);
     }
 
     #[test]
     fn parse_conditions() {
         assert_parse("(cond (true 1))",
-                     Expr::List(vec![
-                         Expr::Cond(vec![
-                             Expr::Predicate(Box::new(Expr::Bool(true)), vec![Expr::Number(1.0)])
-                         ],
-                                    vec![],
-                         )
-                     ]));
+                     Expr::Cond(vec![
+                         Expr::Predicate(Box::new(Expr::Bool(true)), vec![Expr::Number(1.0)])
+                     ],
+                                vec![],
+                     ),
+        );
         assert_parse("(cond (true 1) (false 2))",
-                     Expr::List(vec![
-                         Expr::Cond(vec![
-                             Expr::Predicate(Box::new(Expr::Bool(true)), vec![Expr::Number(1.0)]),
-                             Expr::Predicate(Box::new(Expr::Bool(false)), vec![Expr::Number(2.0)]),
-                         ],
-                                    vec![],
-                         )
-                     ]));
+                     Expr::Cond(vec![
+                         Expr::Predicate(Box::new(Expr::Bool(true)), vec![Expr::Number(1.0)]),
+                         Expr::Predicate(Box::new(Expr::Bool(false)), vec![Expr::Number(2.0)]),
+                     ],
+                                vec![],
+                     ),
+        );
         assert_parse("(cond (true 1) (else 2))",
-                     Expr::List(vec![
-                         Expr::Cond(vec![
-                             Expr::Predicate(Box::new(Expr::Bool(true)), vec![Expr::Number(1.0)])
-                         ],
-                                    vec![Expr::Number(2.0)],
-                         )
-                     ]));
+                     Expr::Cond(vec![
+                         Expr::Predicate(Box::new(Expr::Bool(true)), vec![Expr::Number(1.0)])
+                     ],
+                                vec![Expr::Number(2.0)],
+                     ),
+        );
     }
 
     #[test]
     fn parse_definitions() {
 //        env_logger::init();
-        assert_parse("(define a 1)", Expr::List(vec![Expr::Define("a".to_string(), Box::new(Expr::Number(1.0)))]));
-        assert_parse("(define a b)", Expr::List(vec![Expr::Define("a".to_string(), Box::new(Expr::Identifier("b".to_string())))]));
-        assert_parse("(define a (+ 1))", Expr::List(vec![
-            Expr::Define("a".to_string(), Box::new(Expr::Expression(
-                Box::new(Expr::Identifier("+".to_string())), vec![
-                    Expr::Number(1.0)
-                ])))]));
+        assert_parse("(define a 1)", Expr::Define("a".to_string(), Box::new(Expr::Number(1.0))));
+        assert_parse("(define a b)", Expr::Define("a".to_string(), Box::new(Expr::Identifier("b".to_string()))));
+        assert_parse("(define a (+ 1))",
+                     Expr::Define("a".to_string(), Box::new(Expr::Expression(
+                         Box::new(Expr::Identifier("+".to_string())), vec![
+                             Expr::Number(1.0)
+                         ]))));
         assert_parse("(define (one) 1)",
-                     Expr::List(vec![
-                         Expr::Define(
-                             "one".to_string(),
-                             Box::new(Expr::Lambda(
-                                 vec![],
-                                 vec![Expr::Number(1.0)],
-                                 None
-                             )),
-                         )
-                     ]),
+                     Expr::Define(
+                         "one".to_string(),
+                         Box::new(Expr::Lambda(
+                             vec![],
+                             vec![Expr::Number(1.0)],
+                             None,
+                         )),
+                     ),
         );
         assert_parse("(define (square x) (* x x))",
-                     Expr::List(vec![
-                         Expr::Define(
-                             "square".to_string(),
-                             Box::new(Expr::Lambda(
-                                 vec![Expr::Identifier("x".to_string())],
-                                 vec![Expr::Expression(
-                                     Box::new(Expr::Identifier("*".to_string())),
-                                     vec![Expr::Identifier("x".to_string()), Expr::Identifier("x".to_string())],
-                                 )],
-                                 None
-                             )),
-                         )
-                     ]),
+                     Expr::Define(
+                         "square".to_string(),
+                         Box::new(Expr::Lambda(
+                             vec![Expr::Identifier("x".to_string())],
+                             vec![Expr::Expression(
+                                 Box::new(Expr::Identifier("*".to_string())),
+                                 vec![Expr::Identifier("x".to_string()), Expr::Identifier("x".to_string())],
+                             )],
+                             None,
+                         )),
+                     ),
         );
         assert_parse("(define square (lambda (x) (* x x)))",
-                     Expr::List(vec![
-                         Expr::Define(
-                             "square".to_string(),
-                             Box::new(Expr::Lambda(
-                                 vec![Expr::Identifier("x".to_string())],
-                                 vec![Expr::Expression(
-                                     Box::new(Expr::Identifier("*".to_string())),
-                                     vec![Expr::Identifier("x".to_string()), Expr::Identifier("x".to_string())],
-                                 )],
-                                 None
-                             )),
-                         )
-                     ]),
+                     Expr::Define(
+                         "square".to_string(),
+                         Box::new(Expr::Lambda(
+                             vec![Expr::Identifier("x".to_string())],
+                             vec![Expr::Expression(
+                                 Box::new(Expr::Identifier("*".to_string())),
+                                 vec![Expr::Identifier("x".to_string()), Expr::Identifier("x".to_string())],
+                             )],
+                             None,
+                         )),
+                     ),
         );
         assert_parse("(define (a) ((if true +) 1))",
-                     Expr::List(vec![
-                         Expr::Define(
-                             "a".to_string(),
-                             Box::new(Expr::Lambda(
-                                 vec![],
-                                 vec![
-                                     Expr::Expression(Box::new(
-                                         Expr::If(Box::new(Expr::Bool(true)),
-                                                  Box::new(Expr::Identifier("+".to_string())),
-                                                  None)
-                                     ),
-                                                      vec![Expr::Number(1.0)],
-                                     )
-                                 ],
-                                 None
-                             )),
-                         )
-                     ]),
+                     Expr::Define(
+                         "a".to_string(),
+                         Box::new(Expr::Lambda(
+                             vec![],
+                             vec![
+                                 Expr::Expression(Box::new(
+                                     Expr::If(Box::new(Expr::Bool(true)),
+                                              Box::new(Expr::Identifier("+".to_string())),
+                                              None)
+                                 ),
+                                                  vec![Expr::Number(1.0)],
+                                 )
+                             ],
+                             None,
+                         )),
+                     ),
         );
 
-        assert_parse("\
+        assert_parse_list("\
                 (define a (+ 1))\
                 (define b a)\
                 b",
-                     Expr::List(vec![
-                         Expr::Define("a".to_string(), Box::new(Expr::Expression(
-                             Box::new(Expr::Identifier("+".to_string())), vec![
-                                 Expr::Number(1.0)
-                             ]))),
-                         Expr::Define("b".to_string(), Box::new(Expr::Identifier("a".to_string()))),
-                         Expr::Identifier("b".to_string()),
-                     ]),
+                          vec![
+                              Expr::Define("a".to_string(), Box::new(Expr::Expression(
+                                  Box::new(Expr::Identifier("+".to_string())), vec![
+                                      Expr::Number(1.0)
+                                  ]))),
+                              Expr::Define("b".to_string(), Box::new(Expr::Identifier("a".to_string()))),
+                              Expr::Identifier("b".to_string()),
+                          ],
         );
     }
 
     #[test]
     fn parse_expressions() {
-        assert_parse("(one)", Expr::List(vec![Expr::Expression(Box::new(Expr::Identifier("one".to_string())), vec![])]));
+        assert_parse("(one)", Expr::Expression(Box::new(Expr::Identifier("one".to_string())), vec![]));
 
-        assert_parse("(+ 1 2)", Expr::List(vec![Expr::Expression(Box::new(Expr::Identifier("+".to_string())), vec![
+        assert_parse("(+ 1 2)", Expr::Expression(Box::new(Expr::Identifier("+".to_string())), vec![
             Expr::Number(1.0), Expr::Number(2.0)
-        ])]));
-
-        assert_parse("(and true false)", Expr::List(vec![Expr::And(vec![
-            Expr::Bool(true), Expr::Bool(false)
-        ])]));
-
-        assert_parse("(or true false)", Expr::List(vec![Expr::Or(vec![
-            Expr::Bool(true), Expr::Bool(false)
-        ])]));
-
-        assert_parse("(not true)", Expr::List(vec![Expr::Not(
-            Box::new(Expr::Bool(true))
-        )]));
-
-        assert_parse("(if true +)", Expr::List(vec![
-            Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Identifier("+".to_string())), None)
         ]));
 
-        assert_parse("((if true +) 1)", Expr::List(vec![Expr::Expression(
+        assert_parse("(and true false)", Expr::And(vec![
+            Expr::Bool(true), Expr::Bool(false)
+        ]));
+
+        assert_parse("(or true false)", Expr::Or(vec![
+            Expr::Bool(true), Expr::Bool(false)
+        ]));
+
+        assert_parse("(not true)", Expr::Not(
+            Box::new(Expr::Bool(true))
+        ));
+
+        assert_parse("(if true +)",
+                     Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Identifier("+".to_string())), None),
+        );
+
+        assert_parse("((if true +) 1)", Expr::Expression(
             Box::new(Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Identifier("+".to_string())), None)),
             vec![Expr::Number(1.0)],
-        )]));
+        ));
     }
 
     #[test]
     fn parse_ifs() {
         assert_parse("(if true 1)",
-                     Expr::List(vec![
-                         Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Number(1.0)), None)
-                     ]));
+                     Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Number(1.0)), None),
+        );
 
         assert_parse("(if true 1 2)",
-                     Expr::List(vec![
-                         Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Number(1.0)), Some(Box::new(Expr::Number(2.0))))
-                     ]));
+                     Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Number(1.0)), Some(Box::new(Expr::Number(2.0)))),
+        );
 
         assert_parse("(if true +)",
-                     Expr::List(vec![
-                         Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Identifier("+".to_string())), None)
-                     ]));
+                     Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Identifier("+".to_string())), None),
+        );
     }
 
     #[test]
     fn parse_lambdas() {
         assert_parse("(lambda () ())",
-                     Expr::List(vec![
-                         Expr::Lambda(
-                             vec![],
-                             vec![Expr::Empty],
-                             None
-                         )]),
+                     Expr::Lambda(
+                         vec![],
+                         vec![Expr::Empty],
+                         None,
+                     ),
         );
         assert_parse("(lambda (x) (+ x 4))",
-                     Expr::List(vec![
-                         Expr::Lambda(
-                             vec![Expr::Identifier("x".to_string())],
-                             vec![
-                                 Expr::Expression(
-                                     Box::new(
-                                         Expr::Identifier("+".to_string())
-                                     ),
-                                     vec![
-                                         Expr::Identifier("x".to_string()),
-                                         Expr::Number(4.0)
-                                     ],
-                                 )
-                             ],
-                             None
-                         )]),
+                     Expr::Lambda(
+                         vec![Expr::Identifier("x".to_string())],
+                         vec![
+                             Expr::Expression(
+                                 Box::new(
+                                     Expr::Identifier("+".to_string())
+                                 ),
+                                 vec![
+                                     Expr::Identifier("x".to_string()),
+                                     Expr::Number(4.0)
+                                 ],
+                             )
+                         ],
+                         None,
+                     ),
         );
     }
 
@@ -677,64 +654,61 @@ mod tests {
     fn parse_lets() {
 //        env_logger::init();
         assert_parse("(let () 1)",
-                     Expr::List(vec![
-                         Expr::Expression(Box::new(Expr::Lambda(
-                             vec![],
-                             vec![
-                                 Expr::Number(1.0)
-                             ],
-                             None
-                         )),
-                                          vec![])
-                     ]),
+                     Expr::Expression(Box::new(Expr::Lambda(
+                         vec![],
+                         vec![
+                             Expr::Number(1.0)
+                         ],
+                         None,
+                     )),
+                                      vec![]),
         );
         assert_parse("(let ((x 3)) x)",
-                     Expr::List(vec![
-                         Expr::Expression(Box::new(Expr::Lambda(
-                             vec![Expr::Identifier("x".to_string())],
-                             vec![
-                                 Expr::Identifier("x".to_string())
-                             ],
-                             None
-                         )),
-                                          vec![Expr::Number(3.0)])
-                     ]),
+                     Expr::Expression(Box::new(Expr::Lambda(
+                         vec![Expr::Identifier("x".to_string())],
+                         vec![
+                             Expr::Identifier("x".to_string())
+                         ],
+                         None,
+                     )),
+                                      vec![Expr::Number(3.0)]),
         );
         assert_parse("(let () x)",
-                     Expr::List(vec![
-                         Expr::Expression(Box::new(Expr::Lambda(
-                             vec![],
-                             vec![
-                                 Expr::Identifier("x".to_string())
-                             ],
-                             None
-                         )),
-                                          vec![])
-                     ]),
+                     Expr::Expression(Box::new(Expr::Lambda(
+                         vec![],
+                         vec![
+                             Expr::Identifier("x".to_string())
+                         ],
+                         None,
+                     )),
+                                      vec![]),
         );
     }
 
     #[test]
     fn parse_operations() {
-        let expr = parse("+ 123 456").unwrap();
-
-        assert_that!(expr, equal_to(Expr::List(vec![Expr::Identifier("+".to_string()), Expr::Number(123.0), Expr::Number(456.0)])));
+        assert_parse_list("+ 123 456", vec![Expr::Identifier("+".to_string()), Expr::Number(123.0), Expr::Number(456.0)]);
     }
 
-    fn parse(source: &str) -> Result<Expr, Error> {
+    fn parse(source: &str) -> Result<Vec<Expr>, Error> {
         debug!("Parsing: '{}'", source);
         let lexer = Lexer::new();
-        let tokens = lexer.lex(source).unwrap();
-//        debug!("Tokens: '{:#?}'", tokens);
-        let parser = Parser::new();
+        let tokens = lexer.lex(source)?;
 
+        let parser = Parser::new();
         parser.parse(tokens)
     }
 
     fn assert_parse(source: &str, expr: Expr) {
-        let res = parse(source);
+        let exprs = parse(source).unwrap();
 
-        assert_that!(res.unwrap(), equal_to(expr));
+        assert_that!(&exprs[0], equal_to(&expr));
+    }
+
+    fn assert_parse_list(source: &str, exprs: Vec<Expr>) {
+        let actual = parse(source).unwrap();
+
+        assert_that!(actual, equal_to(exprs));
     }
 
     fn assert_invalid(source: &str, message: &str) {

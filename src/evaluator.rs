@@ -36,7 +36,7 @@ impl Evaluator {
                 debug!("cloned lambda (env: {}:{})", env.index, if let Some(enclosing) = enclosing { enclosing.index } else { 0 });
                 Ok(Expr::Lambda(params.clone(), body.clone(), Some(env.clone())))
             }
-            Expr::List(list) => self.eval_list(list, env),
+            Expr::List(list) => Ok(expr.clone()),
             Expr::Not(expr) => self.eval_not(expr, env),
             Expr::Number(_) => Ok(expr.clone()),
             Expr::Or(exprs) => self.eval_or(exprs, env),
@@ -395,31 +395,19 @@ mod tests {
     }
 
     fn eval(source: &str, globals: &mut Environment) -> Result<Expr, Error> {
-        debug!("Source: {}", source);
         let lexer = Lexer::new();
         let parser = Parser::new();
         let evaluator = Evaluator::new();
 
-        let tokens = match lexer.lex(source) {
-            Ok(tokens) => tokens,
-            Err(e) => return Err(e)
-        };
+        let tokens = lexer.lex(source)?;
+        let exprs = parser.parse(tokens)?;
 
-        let expr = match parser.parse(tokens) {
-            Ok(e) => e,
-            Err(e) => return Err(e)
-        };
+        let mut res = Err(Error::Evaluator(format!("No expressions to eval.")));
 
-//        println!("{:#?}", expr);
-
-        let res = match evaluator.evaluate(&expr, globals) {
-            Ok(expr) => Some(expr),
-            Err(e) => return Err(e)
-        };
-
-        match res {
-            Some(result) => Ok(result),
-            None => Err(Error::Evaluator(format!("No expressions to eval.")))
+        for expr in exprs {
+            res = evaluator.evaluate(&expr, globals);
         }
+
+        res
     }
 }

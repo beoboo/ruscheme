@@ -46,7 +46,7 @@ fn repl() {
         if io::stdin().read_line(&mut line).is_ok() {
             source += line.as_str();
 
-            match run(&source, &mut globals) {
+            match run(&source, &mut globals, true) {
                 Err(e) => {
                     match e {
                         Error::UnterminatedInput => {
@@ -74,22 +74,15 @@ fn run_file(filename: &String) {
     let source: String = fs::read_to_string(filename)
         .expect(format!("Cannot read {}", filename).as_str());
 
-    match run(&source, &mut globals) {
+    match run(&source, &mut globals, false) {
         Err(e) => eprintln!("{}", format!("{}", e).red()),
         _ => (),
     };
 }
 
-fn run(source: &str, globals: &mut Environment) -> Result<(), Error> {
+fn run(source: &str, globals: &mut Environment, print_output: bool) -> Result<(), Error> {
     let lexer: Lexer = Lexer::new();
-
-    let res = lexer.lex(source);
-    let tokens;
-
-    match res {
-        Ok(t) => tokens = t,
-        Err(e) => return Err(e)
-    };
+    let tokens= lexer.lex(source)?;
 
 //    println!("{} token{}:", &tokens.len(), if tokens.len() != 1 { "s" } else { "" });
 //    for token in &tokens {
@@ -103,12 +96,8 @@ fn run(source: &str, globals: &mut Environment) -> Result<(), Error> {
     }
 
     let parser: Parser = Parser::new();
-    let res = parser.parse(tokens);
+    let exprs = parser.parse(tokens)?;
 
-    let expr = match res {
-        Ok(expr) => expr,
-        Err(e) => return Err(e)
-    };
 //
 //    println!("{} expression{}:", &expressions.len(), if expressions.len() != 1 { "s" } else { "" });
 //    for expr in &expressions {
@@ -118,10 +107,20 @@ fn run(source: &str, globals: &mut Environment) -> Result<(), Error> {
 
     let evaluator: Evaluator = Evaluator::new();
 
-    match evaluator.evaluate(&expr, globals) {
-        Ok(res) => println!("{}", res.to_string().green()),
-        Err(e) => return Err(e)
+    for expr in exprs {
+        match evaluator.evaluate(&expr, globals) {
+            Ok(res) => {
+                if print_output {
+                    println!();
+                    println!("{}", res.to_string().green());
+                    println!();
+                }
+            },
+            Err(e) => return Err(e)
+        }
     }
+
+    println!();
 
     Ok(())
 }
