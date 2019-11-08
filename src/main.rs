@@ -61,6 +61,7 @@ fn repl() {
                     }
                 }
                 _ => {
+                    source = String::new();
                     prompt = "> ";
                 }
             };
@@ -111,16 +112,12 @@ fn run(source: &str, globals: &mut Environment, print_output: bool) -> Result<()
         match evaluator.evaluate(&expr, globals) {
             Ok(res) => {
                 if print_output {
-                    println!();
                     println!("{}", res.to_string().green());
-                    println!();
                 }
             },
             Err(e) => return Err(e)
         }
     }
-
-    println!();
 
     Ok(())
 }

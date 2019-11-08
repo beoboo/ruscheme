@@ -169,7 +169,7 @@ fn is_digit(ch: char) -> bool {
 
 fn is_alphanum(ch: char) -> bool {
     match ch {
-        '0'..='9' | 'a'..='z' | 'A'..='Z' | '?' | '_' | '-' | '$' => true,
+        '0'..='9' | 'a'..='z' | 'A'..='Z' | '?' | '_' | '-' | '$' | '>' => true,
         _ => false
     }
 }
@@ -262,12 +262,14 @@ mod tests {
 
     #[test]
     fn lex_identifiers() {
-        assert_lex("+ - * / plus_one", vec![
+        assert_lex("+ - * / plus_one right? an->arrow", vec![
             TokenType::Identifier("+".to_string()),
             TokenType::Identifier("-".to_string()),
             TokenType::Identifier("*".to_string()),
             TokenType::Identifier("/".to_string()),
             TokenType::Identifier("plus_one".to_string()),
+            TokenType::Identifier("right?".to_string()),
+            TokenType::Identifier("an->arrow".to_string()),
         ]);
     }
 

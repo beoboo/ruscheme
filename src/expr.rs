@@ -1,6 +1,7 @@
 use std::fmt;
+use std::fmt::{Error, Formatter};
 use std::rc::Rc;
-use std::fmt::{Formatter, Error};
+
 use crate::environment::Environment;
 
 pub type Action = dyn Fn(Vec<Expr>) -> Result<Expr, String>;
@@ -10,14 +11,14 @@ pub type RcAction = Rc<BoxedAction>;
 #[derive(Clone)]
 pub struct Callable {
     pub name: String,
-    pub action: RcAction
+    pub action: RcAction,
 }
 
 impl Callable {
     pub fn new(name: String, action: RcAction) -> Callable {
-        Callable{
+        Callable {
             name,
-            action
+            action,
         }
     }
 }
@@ -47,10 +48,11 @@ pub enum Expr {
     Callable(Callable),
     Identifier(String),
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
-    List(Vec<Expr>),
+    //    List(Vec<Expr>),
     Not(Box<Expr>),
     Number(f64),
     Or(Vec<Expr>),
+    Pair(Box<Expr>, Box<Expr>),
     Predicate(Box<Expr>, Vec<Expr>),
     Lambda(Vec<Expr>, Vec<Expr>, Option<Environment>),
     String(String),
@@ -63,21 +65,25 @@ impl Expr {
             _ => Err(format!("Cannot convert {} to f64", self))
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        *self == Expr::Empty
+    }
 }
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 //        return write!(f, "None");
         match self {
-            Expr::And(exprs) => write!(f, "(and {})", build_str(exprs)),
+            Expr::And(exprs) => write!(f, "(and {})", join_exprs(exprs, " ")),
             Expr::Bool(b) => write!(f, "{}", if *b { "#t" } else { "#f" }),
             Expr::Cond(predicate_branches, else_branch) => {
-                let predicates = build_str(predicate_branches);
+                let predicates = join_exprs(predicate_branches, " ");
 
                 if else_branch.len() == 0 {
-                    write!(f, "(cond {})", predicates)
+                    write!(f, "(cond ({}))", predicates)
                 } else {
-                    write!(f, "(cond {} {})", predicates, build_str(else_branch))
+                    write!(f, "(cond ({}) {})", predicates, join_exprs(else_branch, " "))
                 }
             }
             Expr::Define(name, _) => write!(f, "{}", name),
@@ -86,7 +92,7 @@ impl fmt::Display for Expr {
                 if exprs.len() == 0 {
                     write!(f, "({})", name)
                 } else {
-                    write!(f, "({} {})", name, build_str(exprs))
+                    write!(f, "({} {})", name, join_exprs(exprs, " "))
                 }
             }
             Expr::Function(name, _) => write!(f, "native '{}'", name),
@@ -97,26 +103,58 @@ impl fmt::Display for Expr {
                 let then_branch = then_branch.as_ref();
 
                 match else_branch {
-                    Some(else_branch) => write!(f, "(if {} {} {})", predicate, then_branch, else_branch.as_ref()),
-                    None => write!(f, "(if {} {})", predicate, then_branch)
+                    Some(else_branch) => write!(f, "(if ({}) {} {})", predicate, then_branch, else_branch.as_ref()),
+                    None => write!(f, "(if ({}) {})", predicate, then_branch)
                 }
             }
-            Expr::Lambda(params, body, _) => write!(f, "lambda ({}) {}", build_str(params), build_str(body)),
-            Expr::List(exprs) => write!(f, "[{}]", build_str(exprs)),
+            Expr::Lambda(params, body, _) => write!(f, "lambda ({}) {}", join_exprs(params, " "), join_exprs(body, " ")),
             Expr::None => write!(f, "No result"),
             Expr::Not(expr) => write!(f, "(not {})", expr),
             Expr::Number(n) => write!(f, "{}", n),
-            Expr::Or(exprs) => write!(f, "(or {})", build_str(exprs)),
-            Expr::Predicate(test, exprs) => write!(f, "({} {})", test, build_str(exprs)),
+            Expr::Or(exprs) => write!(f, "(or {})", join_exprs(exprs, " ")),
+            Expr::Pair(first, rest) => {
+                if first.is_empty() {
+                    write!(f, "(())")
+                } else {
+                    let mut res = String::new();
+
+                    let mut first = first.as_ref();
+                    let mut rest = rest.as_ref();
+
+                    loop {
+                        if res.len() > 0 {
+                            res += " ";
+                        }
+                        res += first.to_string().as_str();
+
+                        match rest {
+                            Expr::Pair(head, tail) => {
+                                first = head;
+                                rest = tail;
+                            }
+                            Expr::Empty => {
+                                break;
+                            }
+                            e => {
+                                res += " . ";
+                                res += e.to_string().as_str();
+                                break;
+                            }
+                        }
+                    }
+                    write!(f, "({})", res)
+                }
+            }
+            Expr::Predicate(test, exprs) => write!(f, "({} {})", test, join_exprs(exprs, " ")),
             Expr::String(s) => write!(f, "{}", s),
         }
     }
 }
 
-fn build_str(exprs: &Vec<Expr>) -> String {
+fn join_exprs(exprs: &Vec<Expr>, sep: &str) -> String {
     let res = exprs.iter().map(|e| e.to_string());
     let res: Vec<String> = res.collect();
-    res.join(" ")
+    res.join(sep)
 }
 
 

@@ -95,14 +95,16 @@ impl Environment {
         environment.define_func("cdr", cdr());
         environment.define_func("cons", cons());
         environment.define_func("display", display());
-        environment.define_func("remainder", remainder());
+        environment.define_func("length", length());
+        environment.define_func("list", list());
         environment.define_func("newline", |_| {
             println!();
             Ok(Expr::None)
         });
+        environment.define_func("null?", null());
+        environment.define_func("remainder", remainder());
 
         let now = SystemTime::now();
-
         environment.define_callable("runtime", Box::new(move |args| runtime(now, args)));
 
         environment
@@ -210,6 +212,101 @@ fn div() -> fn(Vec<Expr>) -> Result<Expr, String> {
     }
 }
 
+fn car() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() != 1 {
+            return Err(format!("Exactly 1 argument required."));
+        }
+
+        match &args[0] {
+            Expr::Pair(first, _) => Ok(first.as_ref().clone()),
+            e => return Err(format!("Expected pair (found: {})", e))
+        }
+    }
+}
+
+fn cdr() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() != 1 {
+            return Err(format!("Exactly 1 argument required."));
+        }
+
+        match &args[0] {
+            Expr::Pair(_, rest) => Ok(rest.as_ref().clone()),
+            e => return Err(format!("Expected pair (found: {})", e))
+        }
+    }
+}
+
+fn cons() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() != 2 {
+            return Err(format!("Exactly 2 arguments required."));
+        }
+
+        Ok(Expr::Pair(Box::new(args[0].clone()), Box::new(args[1].clone())))
+    }
+}
+
+fn build_cons(args: &[Expr]) -> Expr {
+    if args.len() == 0 {
+        Expr::Empty
+    } else {
+        Expr::Pair(Box::new(args[0].clone()), Box::new(build_cons(&args[1..])))
+    }
+}
+
+fn display() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() != 1 {
+            return Err(format!("Exactly 1 argument required."));
+        }
+
+        let arg = args.first().unwrap();
+        print!("{}", arg);
+
+        Ok(Expr::None)
+    }
+}
+
+fn length() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() != 1 {
+            return Err(format!("Exactly 1 argument required."));
+        }
+
+        let mut length = 0;
+        let mut expr = &args[0];
+        while expr != &Expr::Empty {
+            match expr {
+                Expr::Pair(_, rest) => {
+                    length += 1;
+                    expr = rest.as_ref()
+                }
+                _ => return Err(format!("Argument is not a list."))
+            };
+        }
+
+        Ok(Expr::Number(length as f64))
+    }
+}
+
+fn list() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        Ok(build_cons(args.as_slice()))
+    }
+}
+
+fn null() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() != 1 {
+            return Err(format!("Exactly 1 argument required."));
+        }
+
+        Ok(Expr::Bool(args[0] == Expr::Empty))
+    }
+}
+
 fn remainder() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
         if args.len() != 2 {
@@ -228,56 +325,6 @@ fn remainder() -> fn(Vec<Expr>) -> Result<Expr, String> {
         }
 
         Ok(Expr::Number(a % b))
-    }
-}
-
-fn display() -> fn(Vec<Expr>) -> Result<Expr, String> {
-    |args: Vec<Expr>| -> Result<Expr, String> {
-        if args.len() != 1 {
-            return Err(format!("Exactly 1 argument required."));
-        }
-
-        let arg = args.first().unwrap();
-        print!("{}", arg);
-
-        Ok(Expr::None)
-    }
-}
-
-fn car() -> fn(Vec<Expr>) -> Result<Expr, String> {
-    |args: Vec<Expr>| -> Result<Expr, String> {
-        if args.len() != 1 {
-            return Err(format!("Exactly 1 argument required."));
-        }
-
-        match &args[0] {
-            Expr::List(exprs) => Ok(exprs[0].clone()),
-            e => return Err(format!("Expected list (found: {})", e))
-        }
-    }
-}
-
-fn cdr() -> fn(Vec<Expr>) -> Result<Expr, String> {
-    |args: Vec<Expr>| -> Result<Expr, String> {
-        if args.len() != 1 {
-            return Err(format!("Exactly 1 argument required."));
-        }
-
-        match &args[0] {
-            Expr::List(exprs) => Ok(exprs[1].clone()),
-            e => return Err(format!("Expected list (found: {})", e))
-//            _ => return Err(format!("Expected list"))
-        }
-    }
-}
-
-fn cons() -> fn(Vec<Expr>) -> Result<Expr, String> {
-    |args: Vec<Expr>| -> Result<Expr, String> {
-        if args.len() != 2 {
-            return Err(format!("Exactly 2 arguments required."));
-        }
-
-        Ok(Expr::List(args))
     }
 }
 
@@ -314,12 +361,6 @@ mod tests {
     fn check_empty() {
         let environment = Environment::new(None);
         assert_that!(environment.keys.len(), equal_to(0));
-    }
-
-    #[test]
-    fn check_globals() {
-        let environment = Environment::global();
-        assert_that!(environment.keys.len(), equal_to(16));
     }
 
     #[test]
@@ -369,9 +410,20 @@ mod tests {
         assert_eval("(remainder 1 2)", Expr::Number(1.0));
         assert_eval("(remainder (+ 1) 2)", Expr::Number(1.0));
         assert_eval("(display \"test\")", Expr::None);
-        assert_eval("(cons 1 2)", Expr::List(vec![Expr::Number(1.0), Expr::Number(2.0)]));
+        assert_eval("(cons 1 ())", Expr::Pair(Box::new(Expr::Number(1.0)), Box::new(Expr::Empty)));
+        assert_eval("(cons 1 2)", Expr::Pair(Box::new(Expr::Number(1.0)), Box::new(Expr::Number(2.0))));
         assert_eval("(car (cons 1 2))", Expr::Number(1.0));
         assert_eval("(cdr (cons 1 2))", Expr::Number(2.0));
+        assert_eval("(cdr (cons 1 2))", Expr::Number(2.0));
+        assert_eval("(list 1 2)", Expr::Pair(
+            Box::new(Expr::Number(1.0)),
+            Box::new(Expr::Pair(
+                Box::new(Expr::Number(2.0)),
+                Box::new(Expr::Empty),
+            ))),
+        );
+        assert_eval("(null? ())", Expr::Bool(true));
+        assert_eval("(null? (list 1 2))", Expr::Bool(false));
     }
 
     #[test]
@@ -384,7 +436,9 @@ mod tests {
         assert_invalid("(remainder 0)", "Exactly 2 arguments required.".to_string());
         assert_invalid("(remainder 1)", "Exactly 2 arguments required.".to_string());
         assert_invalid("(remainder 1 2 3)", "Exactly 2 arguments required.".to_string());
-        assert_invalid("(remainder 1 0)", "Division by zero.".to_string());
+        assert_invalid("(length)", "Exactly 1 argument required.".to_string());
+        assert_invalid("(length 1)", "Argument is not a list.".to_string());
+//        assert_invalid("(remainder 1 0)", "Division by zero.".to_string());
     }
 
     fn assert_eval(expr: &str, expected: Expr) {

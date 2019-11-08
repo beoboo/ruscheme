@@ -36,10 +36,10 @@ impl Evaluator {
                 debug!("cloned lambda (env: {}:{})", env.index, if let Some(enclosing) = enclosing { enclosing.index } else { 0 });
                 Ok(Expr::Lambda(params.clone(), body.clone(), Some(env.clone())))
             }
-            Expr::List(_) => Ok(expr.clone()),
             Expr::Not(expr) => self.eval_not(expr, env),
             Expr::Number(_) => Ok(expr.clone()),
             Expr::Or(exprs) => self.eval_or(exprs, env),
+            Expr::Pair(_, _) => Ok(expr.clone()),
             Expr::String(_) => Ok(expr.clone()),
             e => panic!("Unmapped expression: {}", e)
         }
@@ -324,7 +324,7 @@ mod tests {
 
     #[test]
     fn eval_lambdas() {
-        env_logger::init();
+//        env_logger::init();
         assert_eval("\
                     (define (one) 1)\
                     (one)",
@@ -354,17 +354,30 @@ mod tests {
 
     #[test]
     fn eval_lets() {
-        env_logger::init();
-//        assert_eval("\
-//                    (define x 1)\
-//                    (let () (+ x 5))",
-//                    Expr::Number(6.0),
-//        );
+//        env_logger::init();
+        assert_eval("\
+                    (define x 1)\
+                    (let () (+ x 5))",
+                    Expr::Number(6.0),
+        );
         assert_eval("\
                     (define x 1)\
                     (let ((a x)) a)",
                     Expr::Number(1.0),
         );
+    }
+
+    #[test]
+    fn eval_output() {
+        env_logger::init();
+        assert_output("(list)", "()");
+        assert_output("(list 1)", "(1)");
+        assert_output("(list 1 2)", "(1 2)");
+        assert_output("(list 1 2 3)", "(1 2 3)");
+        assert_output("(cons () ())", "(())");
+        assert_output("(cons 1 ())", "(1)");
+        assert_output("(cons 1 2)", "(1 . 2)");
+        assert_output("(cons 1 (cons 2 ()))", "(1 2)");
     }
 
     #[test]
@@ -390,6 +403,14 @@ mod tests {
         let res = eval(expr, &mut globals);
 
         assert_that!(res.unwrap(), equal_to(expected));
+    }
+
+    fn assert_output(expr: &str, expected: &str) {
+        debug!("Evaluating {}", expr);
+        let mut globals = Environment::global();
+        let res = eval(expr, &mut globals).unwrap();
+
+        assert_that!(res.to_string(), equal_to(expected));
     }
 
     fn assert_invalid(expr: &str, err: String) {
