@@ -28,6 +28,10 @@ impl Lexer {
                     it.next();
                     continue;
                 }
+                ';' => {
+                    comment(&mut it);
+                    continue;
+                }
                 '"' => string(&mut it),
                 '\n' => {
                     line += 1;
@@ -54,8 +58,10 @@ impl Lexer {
     }
 }
 
-fn build_token(token_type: TokenType, line: u32) -> Token {
-    Token::new(token_type, line)
+fn comment(it: &mut PeekableChar) {
+    while peek(it) != '\n' && !is_at_end(it) {
+        advance(it);
+    }
 }
 
 fn identifier(it: &mut PeekableChar) -> Result<TokenType, Error> {
@@ -160,6 +166,10 @@ fn symbol(it: &mut PeekableChar) -> Result<TokenType, Error> {
     Ok(TokenType::Identifier(op))
 }
 
+fn build_token(token_type: TokenType, line: u32) -> Token {
+    Token::new(token_type, line)
+}
+
 fn is_digit(ch: char) -> bool {
     match ch {
         '0'..='9' => true,
@@ -222,6 +232,14 @@ mod tests {
         assert_token(&tokens[0], &TokenType::Bool(true), 1);
         assert_token(&tokens[1], &TokenType::Bool(false), 1);
         assert_token(&tokens[2], &TokenType::EOF, 1);
+    }
+
+    #[test]
+    fn lex_comment() {
+        let tokens = lex(";\n").unwrap();
+
+        assert_that!(&tokens, len(1));
+        assert_token(&tokens[0], &TokenType::EOF, 2);
     }
 
     #[test]

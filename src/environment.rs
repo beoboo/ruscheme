@@ -102,6 +102,7 @@ impl Environment {
             Ok(Expr::None)
         });
         environment.define_func("null?", null());
+        environment.define_func("pair?", pair());
         environment.define_func("remainder", remainder());
 
         let now = SystemTime::now();
@@ -307,6 +308,16 @@ fn null() -> fn(Vec<Expr>) -> Result<Expr, String> {
     }
 }
 
+fn pair() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() != 1 {
+            return Err(format!("Exactly 1 argument required."));
+        }
+
+        Ok(Expr::Bool(args[0].is_pair()))
+    }
+}
+
 fn remainder() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
         if args.len() != 2 {
@@ -424,6 +435,8 @@ mod tests {
         );
         assert_eval("(null? ())", Expr::Bool(true));
         assert_eval("(null? (list 1 2))", Expr::Bool(false));
+        assert_eval("(pair? ())", Expr::Bool(false));
+        assert_eval("(pair? (list 1 2))", Expr::Bool(true));
     }
 
     #[test]

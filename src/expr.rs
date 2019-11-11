@@ -69,11 +69,18 @@ impl Expr {
     pub fn is_empty(&self) -> bool {
         *self == Expr::Empty
     }
+
+    pub fn is_pair(&self) -> bool {
+        match *self {
+            Expr::Pair(_, _) => true,
+            _ => false
+        }
+    }
 }
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//        return write!(f, "None");
+        //        return write!(f, "None");
         match self {
             Expr::And(exprs) => write!(f, "(and {})", join_exprs(exprs, " ")),
             Expr::Bool(b) => write!(f, "{}", if *b { "#t" } else { "#f" }),

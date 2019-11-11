@@ -447,6 +447,13 @@ mod tests {
     }
 
     #[test]
+    fn parse_comment() {
+        assert_parse("\
+        ; This is a comment\n\
+        123", Expr::Number(123.0));
+    }
+
+    #[test]
     fn parse_invalid() {
         assert_invalid("define", "'define' cannot be used outside expressions.");
         assert_invalid("(1)", "'1' is not callable.");
