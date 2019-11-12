@@ -107,6 +107,7 @@ impl Environment {
 
         let now = SystemTime::now();
         environment.define_callable("runtime", Box::new(move |args| runtime(now, args)));
+        environment.define_func("square", square());
 
         environment
     }
@@ -151,8 +152,8 @@ impl Environment {
 
 fn add() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
-        if args.len() == 0 {
-            return Err(format!("At least 1 argument required."));
+        if args.len() != 1 {
+            return Err(format!("Exactly 1 argument required."));
         }
 
         match parse_floats(args) {
@@ -344,6 +345,18 @@ fn runtime(start: SystemTime, _args: Vec<Expr>) -> Result<Expr, String> {
     Ok(Expr::Number(now.duration_since(start).unwrap().as_micros() as f64))
 }
 
+fn square(args: Vec<Expr>) -> fn(Vec<Expr>) -> Result<Expr, String>  {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() != 1 {
+            return Err(format!("Exactly 1 argument required."));
+        }
+
+        let float = args[0].to_f64();
+
+        Ok(Expr::Number(float * float))
+    }
+}
+
 fn parse_floats(args: Vec<Expr>) -> Result<Vec<f64>, String> {
     let mut floats = Vec::new();
 
@@ -437,6 +450,7 @@ mod tests {
         assert_eval("(null? (list 1 2))", Expr::Bool(false));
         assert_eval("(pair? ())", Expr::Bool(false));
         assert_eval("(pair? (list 1 2))", Expr::Bool(true));
+        assert_eval("(square 2)", Expr::Number(4.0));
     }
 
     #[test]
