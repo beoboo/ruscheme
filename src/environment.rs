@@ -91,16 +91,16 @@ impl Environment {
         environment.define_func(">", compare_floats!(|a, b| a > b));
         environment.define_func("<=", compare_floats!(|a, b| a <= b));
         environment.define_func(">=", compare_floats!(|a, b| a >= b));
-        environment.define_func("accumulate", accumulate());
+//        environment.define_func("accumulate", accumulate());
         environment.define_func("append", append());
         environment.define_func("car", car());
         environment.define_func("cdr", cdr());
         environment.define_func("cons", cons());
         environment.define_func("display", display());
-        environment.define_func("filter", filter());
+//        environment.define_func("filter", filter());
         environment.define_func("length", length());
         environment.define_func("list", list());
-        environment.define_func("map", map());
+//        environment.define_func("map", map());
         environment.define_func("newline", newline());
         environment.define_func("nil", nil());
         environment.define_func("null?", null());
@@ -123,19 +123,16 @@ impl Environment {
     }
 
     pub fn define(&mut self, key: &str, expr: Expr) {
-//        debug!("D{} {}: {}", self.index, key, expr);
         self.keys.insert(key.to_string(), expr);
     }
 
     pub fn get(&self, key: &str) -> Result<&Expr, String> {
-//        debug!("Looking for '{}' in {}", key, self.index);
         match self.keys.get(key) {
             Some(v) => {
                 Ok(v)
             }
             None => {
                 if let Some(p) = &self.parent {
-//                    debug!("Looking for env {}", self.index - 1);
                     p.get(key)
                 } else {
                     Err(format!("'{}' not found", key))
@@ -145,8 +142,8 @@ impl Environment {
     }
 }
 
-fn accumulate() -> fn(Vec<Expr>) -> Result<Expr, String> {
-    |args: Vec<Expr>| -> Result<Expr, String> {
+//fn accumulate() -> fn(Vec<Expr>) -> Result<Expr, String> {
+//    |args: Vec<Expr>| -> Result<Expr, String> {
 //        if args.len() != 1 {
 //            return Err(format!("Exactly 1 argument required."));
 //        }
@@ -155,9 +152,9 @@ fn accumulate() -> fn(Vec<Expr>) -> Result<Expr, String> {
 //            Ok(nums) => Ok(Expr::Number(nums.iter().sum())),
 //            Err(e) => Err(e)
 //        }
-        Ok(Expr::Empty)
-    }
-}
+//        Ok(Expr::Empty)
+//    }
+//}
 
 fn add() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
@@ -263,8 +260,8 @@ fn display() -> fn(Vec<Expr>) -> Result<Expr, String> {
     }
 }
 
-fn filter() -> fn(Vec<Expr>) -> Result<Expr, String> {
-    |args: Vec<Expr>| -> Result<Expr, String> {
+//fn filter() -> fn(Vec<Expr>) -> Result<Expr, String> {
+//    |args: Vec<Expr>| -> Result<Expr, String> {
 //        if args.len() != 1 {
 //            return Err(format!("Exactly 1 argument required."));
 //        }
@@ -272,9 +269,9 @@ fn filter() -> fn(Vec<Expr>) -> Result<Expr, String> {
 //        let arg = args.first().unwrap();
 //        print!("{}", arg);
 //
-        Ok(Expr::None)
-    }
-}
+//        Ok(Expr::None)
+//    }
+//}
 
 fn length() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
@@ -304,8 +301,8 @@ fn list() -> fn(Vec<Expr>) -> Result<Expr, String> {
     }
 }
 
-fn map() -> fn(Vec<Expr>) -> Result<Expr, String> {
-    |args: Vec<Expr>| -> Result<Expr, String> {
+//fn map() -> fn(Vec<Expr>) -> Result<Expr, String> {
+//    |args: Vec<Expr>| -> Result<Expr, String> {
 //        if args.len() != 1 {
 //            return Err(format!("Exactly 1 argument required."));
 //        }
@@ -313,9 +310,9 @@ fn map() -> fn(Vec<Expr>) -> Result<Expr, String> {
 //        let arg = args.first().unwrap();
 //        print!("{}", arg);
 //
-        Ok(Expr::None)
-    }
-}
+//        Ok(Expr::None)
+//    }
+//}
 
 fn mul() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
@@ -331,7 +328,7 @@ fn mul() -> fn(Vec<Expr>) -> Result<Expr, String> {
 }
 
 fn nil() -> fn(Vec<Expr>) -> Result<Expr, String> {
-    |args: Vec<Expr>| -> Result<Expr, String> {
+    |_| {
         Ok(Expr::Empty)
     }
 }
