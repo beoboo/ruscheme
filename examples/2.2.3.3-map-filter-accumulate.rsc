@@ -2,11 +2,11 @@
 
 (define (odd? x) (= 1 (remainder x 2)))
 
-(define (append list1 list2)
-  (if (null? list1)
-      list2
-      (cons (car list1) (append (cdr list1) list2))))
-
+;(define (append list1 list2)
+;  (if (null? list1)
+;      list2
+;      (cons (car list1) (append (cdr list1) list2))))
+;
 (define (map proc items)
   (if (null? items)
       nil

@@ -369,7 +369,7 @@ mod tests {
 
     #[test]
     fn eval_output() {
-        env_logger::init();
+//        env_logger::init();
         assert_output("(list)", "()");
         assert_output("(list 1)", "(1)");
         assert_output("(list 1 2)", "(1 2)");
