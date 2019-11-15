@@ -91,16 +91,18 @@ impl Environment {
         environment.define_func(">", compare_floats!(|a, b| a > b));
         environment.define_func("<=", compare_floats!(|a, b| a <= b));
         environment.define_func(">=", compare_floats!(|a, b| a >= b));
+//        environment.define_func("accumulate", accumulate());
+        environment.define_func("append", append());
         environment.define_func("car", car());
         environment.define_func("cdr", cdr());
         environment.define_func("cons", cons());
         environment.define_func("display", display());
+//        environment.define_func("filter", filter());
         environment.define_func("length", length());
         environment.define_func("list", list());
-        environment.define_func("newline", |_| {
-            println!();
-            Ok(Expr::None)
-        });
+//        environment.define_func("map", map());
+        environment.define_func("newline", newline());
+        environment.define_func("nil", nil());
         environment.define_func("null?", null());
         environment.define_func("pair?", pair());
         environment.define_func("remainder", remainder());
@@ -125,14 +127,12 @@ impl Environment {
     }
 
     pub fn get(&self, key: &str) -> Result<&Expr, String> {
-        debug!("Looking for '{}' in {}", key, self.index);
         match self.keys.get(key) {
             Some(v) => {
                 Ok(v)
             }
             None => {
                 if let Some(p) = &self.parent {
-                    debug!("Looking for env {}", self.index - 1);
                     p.get(key)
                 } else {
                     Err(format!("'{}' not found", key))
@@ -142,10 +142,24 @@ impl Environment {
     }
 }
 
+//fn accumulate() -> fn(Vec<Expr>) -> Result<Expr, String> {
+//    |args: Vec<Expr>| -> Result<Expr, String> {
+//        if args.len() != 1 {
+//            return Err(format!("Exactly 1 argument required."));
+//        }
+//
+//        match parse_floats(args) {
+//            Ok(nums) => Ok(Expr::Number(nums.iter().sum())),
+//            Err(e) => Err(e)
+//        }
+//        Ok(Expr::Empty)
+//    }
+//}
+
 fn add() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
-        if args.len() != 1 {
-            return Err(format!("Exactly 1 argument required."));
+        if args.len() == 0 {
+            return Err(format!("At least 1 argument required."));
         }
 
         match parse_floats(args) {
@@ -155,54 +169,28 @@ fn add() -> fn(Vec<Expr>) -> Result<Expr, String> {
     }
 }
 
-fn sub() -> fn(Vec<Expr>) -> Result<Expr, String> {
+fn append() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    fn append_iter(first: &Expr, second: Expr) -> Result<Expr, String> {
+        if first.is_empty() {
+            Ok(second)
+        } else {
+            match first {
+                Expr::Pair(head, tail) => {
+                    Ok(build_pair(head.as_ref().clone(), append_iter(tail.as_ref(), second)?))
+                }
+                _ => return Err(format!("Argument is not a list."))
+            }
+        }
+    };
+
     |args: Vec<Expr>| -> Result<Expr, String> {
-        if args.len() == 0 {
-            return Err(format!("At least 1 argument required."));
+        if args.is_empty() {
+            Ok(Expr::Empty)
+        } else if args.len() == 1 {
+            Ok(args[0].clone())
+        } else {
+            Ok(append_iter(&args[0], args[1].clone())?)
         }
-
-        let floats = parse_floats(args)?;
-
-        let (first, rest) = floats.split_first().unwrap();
-        let first = *first;
-
-        if floats.len() == 1 {
-            return Ok(Expr::Number(-first));
-        }
-
-        let res = rest.iter().fold(first, |sum, a| sum - *a);
-
-        Ok(Expr::Number(res))
-    }
-}
-
-fn mul() -> fn(Vec<Expr>) -> Result<Expr, String> {
-    |args: Vec<Expr>| -> Result<Expr, String> {
-        if args.len() == 0 {
-            return Err(format!("At least 1 argument required."));
-        }
-
-        match parse_floats(args) {
-            Ok(nums) => Ok(Expr::Number(nums.iter().fold(1.0, |sum, a| sum * *a))),
-            Err(e) => Err(e)
-        }
-    }
-}
-
-fn div() -> fn(Vec<Expr>) -> Result<Expr, String> {
-    |args: Vec<Expr>| -> Result<Expr, String> {
-        if args.len() < 2 {
-            return Err(format!("At least 2 arguments required."));
-        }
-
-        let floats = parse_floats(args)?;
-
-        let (first, rest) = floats.split_first().unwrap();
-        let first = *first;
-
-        let res = rest.iter().fold(first, |sum, a| sum / *a);
-
-        Ok(Expr::Number(res))
     }
 }
 
@@ -238,15 +226,24 @@ fn cons() -> fn(Vec<Expr>) -> Result<Expr, String> {
             return Err(format!("Exactly 2 arguments required."));
         }
 
-        Ok(Expr::Pair(Box::new(args[0].clone()), Box::new(args[1].clone())))
+        Ok(build_pair(args[0].clone(), args[1].clone()))
     }
 }
 
-fn build_cons(args: &[Expr]) -> Expr {
-    if args.len() == 0 {
-        Expr::Empty
-    } else {
-        Expr::Pair(Box::new(args[0].clone()), Box::new(build_cons(&args[1..])))
+fn div() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() < 2 {
+            return Err(format!("At least 2 arguments required."));
+        }
+
+        let floats = parse_floats(args)?;
+
+        let (first, rest) = floats.split_first().unwrap();
+        let first = *first;
+
+        let res = rest.iter().fold(first, |sum, a| sum / *a);
+
+        Ok(Expr::Number(res))
     }
 }
 
@@ -262,6 +259,19 @@ fn display() -> fn(Vec<Expr>) -> Result<Expr, String> {
         Ok(Expr::None)
     }
 }
+
+//fn filter() -> fn(Vec<Expr>) -> Result<Expr, String> {
+//    |args: Vec<Expr>| -> Result<Expr, String> {
+//        if args.len() != 1 {
+//            return Err(format!("Exactly 1 argument required."));
+//        }
+//
+//        let arg = args.first().unwrap();
+//        print!("{}", arg);
+//
+//        Ok(Expr::None)
+//    }
+//}
 
 fn length() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
@@ -288,6 +298,45 @@ fn length() -> fn(Vec<Expr>) -> Result<Expr, String> {
 fn list() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
         Ok(build_cons(args.as_slice()))
+    }
+}
+
+//fn map() -> fn(Vec<Expr>) -> Result<Expr, String> {
+//    |args: Vec<Expr>| -> Result<Expr, String> {
+//        if args.len() != 1 {
+//            return Err(format!("Exactly 1 argument required."));
+//        }
+//
+//        let arg = args.first().unwrap();
+//        print!("{}", arg);
+//
+//        Ok(Expr::None)
+//    }
+//}
+
+fn mul() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() == 0 {
+            return Err(format!("At least 1 argument required."));
+        }
+
+        match parse_floats(args) {
+            Ok(nums) => Ok(Expr::Number(nums.iter().fold(1.0, |sum, a| sum * *a))),
+            Err(e) => Err(e)
+        }
+    }
+}
+
+fn nil() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |_| {
+        Ok(Expr::Empty)
+    }
+}
+
+fn newline() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |_| {
+        println!();
+        Ok(Expr::None)
     }
 }
 
@@ -337,15 +386,36 @@ fn runtime(start: SystemTime, _args: Vec<Expr>) -> Result<Expr, String> {
     Ok(Expr::Number(now.duration_since(start).unwrap().as_micros() as f64))
 }
 
-fn square(args: Vec<Expr>) -> fn(Vec<Expr>) -> Result<Expr, String>  {
+fn square() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
         if args.len() != 1 {
             return Err(format!("Exactly 1 argument required."));
         }
 
-        let float = args[0].to_f64();
+        let float = args[0].to_f64()?;
 
         Ok(Expr::Number(float * float))
+    }
+}
+
+fn sub() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        if args.len() == 0 {
+            return Err(format!("At least 1 argument required."));
+        }
+
+        let floats = parse_floats(args)?;
+
+        let (first, rest) = floats.split_first().unwrap();
+        let first = *first;
+
+        if floats.len() == 1 {
+            return Ok(Expr::Number(-first));
+        }
+
+        let res = rest.iter().fold(first, |sum, a| sum - *a);
+
+        Ok(Expr::Number(res))
     }
 }
 
@@ -360,6 +430,18 @@ fn parse_floats(args: Vec<Expr>) -> Result<Vec<f64>, String> {
     }
 
     Ok(floats)
+}
+
+fn build_cons(args: &[Expr]) -> Expr {
+    if args.len() == 0 {
+        Expr::Empty
+    } else {
+        build_pair(args[0].clone(), build_cons(&args[1..]))
+    }
+}
+
+fn build_pair(head: Expr, tail: Expr) -> Expr {
+    Expr::Pair(Box::new(head), Box::new(tail))
 }
 
 #[cfg(test)]
@@ -409,6 +491,7 @@ mod tests {
 
     #[test]
     fn test_functions() {
+        env_logger::init();
         assert_eval("(+ 1 2)", Expr::Number(3.0));
         assert_eval("(= 1 2)", Expr::Bool(false));
         assert_eval("(< 1 2)", Expr::Bool(true));
@@ -422,15 +505,22 @@ mod tests {
         assert_eval("(/ 10 5)", Expr::Number(2.0));
         assert_eval("(+ 2.7 10)", Expr::Number(12.7));
         assert_eval("(+ 1)", Expr::Number(1.0));
-        assert_eval("(remainder 0 2)", Expr::Number(0.0));
-        assert_eval("(remainder 1 2)", Expr::Number(1.0));
-        assert_eval("(remainder (+ 1) 2)", Expr::Number(1.0));
+
         assert_eval("(display \"test\")", Expr::None);
+        assert_eval("(cons () ())", Expr::Pair(Box::new(Expr::Empty), Box::new(Expr::Empty)));
+        assert_eval("(cons () 1)", Expr::Pair(Box::new(Expr::Empty), Box::new(Expr::Number(1.0))));
         assert_eval("(cons 1 ())", Expr::Pair(Box::new(Expr::Number(1.0)), Box::new(Expr::Empty)));
         assert_eval("(cons 1 2)", Expr::Pair(Box::new(Expr::Number(1.0)), Box::new(Expr::Number(2.0))));
         assert_eval("(car (cons 1 2))", Expr::Number(1.0));
         assert_eval("(cdr (cons 1 2))", Expr::Number(2.0));
         assert_eval("(cdr (cons 1 2))", Expr::Number(2.0));
+        assert_eval("(append)", Expr::Empty);
+        assert_eval("(append ())", Expr::Empty);
+        assert_eval("(append (list 1))", Expr::Pair(Box::new(Expr::Number(1.0)), Box::new(Expr::Empty)));
+        assert_eval("(append (list 1) 2)", Expr::Pair(Box::new(Expr::Number(1.0)), Box::new(Expr::Number(2.0))));
+        assert_eval("(remainder 0 2)", Expr::Number(0.0));
+        assert_eval("(remainder 1 2)", Expr::Number(1.0));
+        assert_eval("(remainder (+ 1) 2)", Expr::Number(1.0));
         assert_eval("(list 1 2)", Expr::Pair(
             Box::new(Expr::Number(1.0)),
             Box::new(Expr::Pair(
@@ -457,7 +547,8 @@ mod tests {
         assert_invalid("(remainder 1 2 3)", "Exactly 2 arguments required.".to_string());
         assert_invalid("(length)", "Exactly 1 argument required.".to_string());
         assert_invalid("(length 1)", "Argument is not a list.".to_string());
-//        assert_invalid("(remainder 1 0)", "Division by zero.".to_string());
+        assert_invalid("(remainder 1 0)", "Division by zero.".to_string());
+        assert_invalid("(append 1 0)", "Argument is not a list.".to_string());
     }
 
     fn assert_eval(expr: &str, expected: Expr) {
@@ -475,6 +566,7 @@ mod tests {
     }
 
     fn eval(source: &str, globals: &mut Environment) -> Result<Expr, Error> {
+        debug!("{}", source);
         let lexer = Lexer::new();
         let parser = Parser::new();
         let evaluator = Evaluator::new();
