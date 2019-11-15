@@ -39,6 +39,11 @@ impl Compiler {
         let mut instructions = Vec::new();
 
         loop {
+            if peek(it) == TokenType::EOF {
+                instructions.push(emit(ByteCode::Return, it)?);
+                break;
+            }
+
             let instruction = self.primitive(it)?;
             instructions.push(instruction)
         }
@@ -47,9 +52,16 @@ impl Compiler {
 
     fn primitive(&self, it: &mut PeekableToken) -> Result<ByteCode, Error> {
         match peek(it) {
-            
+            TokenType::Number(n) => emit(ByteCode::Constant(n), it),
+            t => report_error(format!("Undefined token type: '{}'", t))
         }
     }
+}
+
+fn emit(byte_code: ByteCode, it: &mut PeekableToken) -> Result<ByteCode, Error> {
+    advance(it)?;
+
+    Ok(byte_code)
 }
 
 fn report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
