@@ -121,7 +121,6 @@ impl Environment {
     }
 
     pub fn define(&mut self, key: &str, expr: Expr) {
-//        debug!("D{} {}: {}", self.index, key, expr);
         self.keys.insert(key.to_string(), expr);
     }
 
@@ -129,20 +128,13 @@ impl Environment {
         debug!("Looking for '{}' in {}", key, self.index);
         match self.keys.get(key) {
             Some(v) => {
-//                debug!("Found");
                 Ok(v)
             }
             None => {
                 if let Some(p) = &self.parent {
-//                    debug!("{:?}", self);
                     debug!("Looking for env {}", self.index - 1);
                     p.get(key)
                 } else {
-//                    debug!("***");
-//                    debug!("'{}' not found ", key);
-//                    for (k, e) in self.keys.iter() {
-//                        debug!("{}: {}", k, e);
-//                    }
                     Err(format!("'{}' not found", key))
                 }
             }
