@@ -9,6 +9,7 @@ colored = "*"
 log = "*"
 env_logger = "*"
 crossterm = "*"
+regex = "*"
 
 [dev-dependencies]
 hamcrest2 = "*"
