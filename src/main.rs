@@ -13,6 +13,8 @@ use crate::evaluator::*;
 use crate::lexer::*;
 use crate::parser::*;
 
+mod byte_code;
+mod compiler;
 mod environment;
 mod error;
 mod evaluator;
@@ -20,6 +22,7 @@ mod expr;
 mod lexer;
 mod parser;
 mod token;
+mod virtual_machine;
 
 fn main() {
     env_logger::init();

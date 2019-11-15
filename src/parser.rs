@@ -1,18 +1,13 @@
-use std::iter::Peekable;
-use std::slice::Iter;
 
 use log::debug;
 
-use crate::error::Error;
+use crate::error::{Error, report_stage_error};
 use crate::error::Error::UnterminatedInput;
 use crate::expr::*;
 use crate::token::*;
 
 #[derive(Debug)]
 pub struct Parser {}
-
-type IterToken<'a> = Iter<'a, Token>;
-type PeekableToken<'a> = Peekable<IterToken<'a>>;
 
 impl Parser {
     pub fn new() -> Parser {
@@ -377,47 +372,9 @@ impl Parser {
 }
 
 fn report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
-    let error = err.into();
-    if &error == "EOF" {
-        return Err(Error::UnterminatedInput);
-    }
-
-    Err(Error::Parser(error))
+    report_stage_error(err, "parser")
 }
 
-fn advance(it: &mut PeekableToken) -> Result<TokenType, Error> {
-    match it.next() {
-        Some(token) => {
-            Ok(token.token_type.clone())
-        }
-        None => Err(Error::Parser(format!("Token not found.")))
-    }
-}
-
-fn consume<S: Into<String>>(token_type: TokenType, it: &mut PeekableToken, message: S) -> Result<(), Error> {
-    debug!("Consuming: {}", token_type);
-
-    let t = peek(it);
-    if t == token_type {
-        debug!("Consumed: {}", token_type);
-        advance(it).unwrap();
-        return Ok(());
-    }
-
-    if t == TokenType::EOF {
-        return Err(UnterminatedInput);
-    }
-
-    debug!("Found: {}", t);
-    report_error(message.into())
-}
-
-fn peek(it: &mut PeekableToken) -> TokenType {
-    match it.peek() {
-        Some(token) => token.token_type.clone(),
-        None => TokenType::EOF,
-    }
-}
 
 
 #[cfg(test)]
