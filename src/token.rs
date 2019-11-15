@@ -1,4 +1,10 @@
 use std::fmt;
+use std::iter::Peekable;
+use std::slice::Iter;
+
+use log::debug;
+
+use crate::error::{Error, report_stage_error};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
@@ -54,4 +60,45 @@ impl fmt::Display for TokenType {
             TokenType::EOF => write!(f, "EOF"),
         }
     }
+}
+
+type IterToken<'a> = Iter<'a, Token>;
+pub(crate) type PeekableToken<'a> = Peekable<IterToken<'a>>;
+
+pub fn advance(it: &mut PeekableToken) -> Result<TokenType, Error> {
+    match it.next() {
+        Some(token) => {
+            Ok(token.token_type.clone())
+        }
+        None => Err(Error::Parser(format!("Token not found.")))
+    }
+}
+
+pub fn consume<S: Into<String>>(token_type: TokenType, it: &mut PeekableToken, message: S) -> Result<(), Error> {
+    debug!("Consuming: {}", token_type);
+
+    let t = peek(it);
+    if t == token_type {
+        debug!("Consumed: {}", token_type);
+        advance(it).unwrap();
+        return Ok(());
+    }
+
+    if t == TokenType::EOF {
+        return Err(Error::UnterminatedInput);
+    }
+
+    debug!("Found: {}", t);
+    report_error(message.into())
+}
+
+pub fn peek(it: &mut PeekableToken) -> TokenType {
+    match it.peek() {
+        Some(token) => token.token_type.clone(),
+        None => TokenType::EOF,
+    }
+}
+
+fn report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
+    report_stage_error(err, "analyzer")
 }
