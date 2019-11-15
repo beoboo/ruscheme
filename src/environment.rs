@@ -110,9 +110,7 @@ impl Environment {
         environment.define_func("null?", null());
         environment.define_func("pair?", pair());
         environment.define_func("remainder", remainder());
-
-        let now = SystemTime::now();
-        environment.define_callable("runtime", Box::new(move |args| runtime(now, args)));
+        environment.define_callable("runtime", Box::new(move |args| runtime(SystemTime::now(), args)));
         environment.define_func("square", square());
 
         environment
