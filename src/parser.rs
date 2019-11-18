@@ -46,9 +46,8 @@ impl Parser {
         let token_type = advance(it)?;
 
         debug!("primitive '{}'", &token_type);
-        let t2 = token_type.clone();
-        let res = match token_type {
-//            TokenType::Paren(')') => Ok(Expr::Empty),
+
+        match token_type {
             TokenType::Bool(b) => Ok(Expr::Bool(b)),
             TokenType::Identifier(i) => Ok(Expr::Identifier(i)),
             TokenType::Number(n) => Ok(Expr::Number(n)),
@@ -58,10 +57,7 @@ impl Parser {
             TokenType::SingleQuote => self.quote(it),
             TokenType::EOF => Err(UnterminatedInput),
             t => report_error(format!("Undefined token type: '{}'.", t))
-        };
-        debug!("end primitive '{}'", t2);
-
-        res
+        }
     }
 
     fn build_expressions(&self, it: &mut PeekableToken) -> Result<Vec<Expr>, Error> {
@@ -142,11 +138,7 @@ impl Parser {
             TokenType::Or => self.or(it),
             TokenType::Quote => self.quote(it),
             t => return report_error(format!("Undefined form '{}'.", t))
-        };
-
-        if res.is_err() {
-            return res;
-        }
+        }?;
 
         consume(TokenType::Paren(')'), it, format!("Expected ')' after '{}' form.", token_type))?;
 
