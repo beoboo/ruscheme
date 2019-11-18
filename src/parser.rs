@@ -639,7 +639,18 @@ mod tests {
 
     #[test]
     fn parse_operations() {
-        assert_parse_list("+ 123 456", vec![Expr::Identifier("+".to_string()), Expr::Number(123.0), Expr::Number(456.0)]);
+        assert_parse_list("+ 123 456", vec![
+            Expr::Identifier("+".to_string()),
+            Expr::Number(123.0),
+            Expr::Number(456.0)
+        ]);
+    }
+
+    #[test]
+    fn parse_quotes() {
+        assert_parse("(quote a)",
+                     Expr::Quote(Box::new(Expr::Identifier("a".to_string()))),
+        );
     }
 
     fn parse(source: &str) -> Result<Vec<Expr>, Error> {
