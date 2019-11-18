@@ -68,6 +68,12 @@ impl Compiler {
     }
 }
 
+fn emit(byte_code: ByteCode, it: &mut PeekableToken) -> Result<ByteCode, Error> {
+    advance(it)?;
+
+    Ok(byte_code)
+}
+
 fn report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
     report_stage_error(err, "compiler")
 }
