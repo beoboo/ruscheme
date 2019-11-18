@@ -55,6 +55,7 @@ impl Parser {
             TokenType::String(s) => Ok(Expr::String(s)),
             TokenType::Define => report_error("'define' cannot be used outside expressions."),
             TokenType::Paren('(') => self.expression(it),
+            TokenType::SingleQuote => self.quote(it),
             TokenType::EOF => Err(UnterminatedInput),
             t => report_error(format!("Undefined token type: '{}'.", t))
         };
@@ -99,6 +100,7 @@ impl Parser {
             TokenType::Or => return self.form(token_type, it),
             TokenType::Paren(')') => return Ok(Expr::Empty),
             TokenType::Paren('(') => self.expression(it),
+            TokenType::Quote => return self.form(token_type, it),
             TokenType::EOF => Err(Error::UnterminatedInput),
             t => report_error(format!("'{}' is not callable.", t)),
         }?;
@@ -138,6 +140,7 @@ impl Parser {
             TokenType::Let => self.define_let(it),
             TokenType::Not => self.not(it),
             TokenType::Or => self.or(it),
+            TokenType::Quote => self.quote(it),
             t => return report_error(format!("Undefined form '{}'.", t))
         };
 
@@ -314,6 +317,12 @@ impl Parser {
         consume(TokenType::Paren(')'), it, format!("Expected ')' after predicate."))?;
 
         Ok(Expr::Predicate(Box::new(test), exprs))
+    }
+
+    fn quote(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
+        let expr = self.primitive(it)?;
+
+        Ok(Expr::Quote(Box::new(expr)))
     }
 
     fn define_expression(&self, name: &str, it: &mut PeekableToken) -> Result<Expr, Error> {
@@ -649,6 +658,9 @@ mod tests {
     #[test]
     fn parse_quotes() {
         assert_parse("(quote a)",
+                     Expr::Quote(Box::new(Expr::Identifier("a".to_string()))),
+        );
+        assert_parse("'a",
                      Expr::Quote(Box::new(Expr::Identifier("a".to_string()))),
         );
     }

@@ -54,6 +54,7 @@ pub enum Expr {
     Or(Vec<Expr>),
     Pair(Box<Expr>, Box<Expr>),
     Predicate(Box<Expr>, Vec<Expr>),
+    Quote(Box<Expr>),
     Lambda(Vec<Expr>, Vec<Expr>, Option<Environment>),
     String(String),
 }
@@ -149,6 +150,7 @@ impl fmt::Display for Expr {
                 }
             }
             Expr::Predicate(test, exprs) => write!(f, "({} {})", test, join_exprs(exprs, " ")),
+            Expr::Quote(expr) => write!(f, "(quote {})", expr),
             Expr::String(s) => write!(f, "{}", s),
         }
     }
