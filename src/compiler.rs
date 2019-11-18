@@ -95,15 +95,15 @@ mod tests {
 //            ByteCode::Return
         ]);
     }
-
-    #[test]
-    fn compile_expressions() {
-        assert_compile("(+ 137 349)", vec![
-            ByteCode::Constant(137.0),
-            ByteCode::Constant(349.0),
-            ByteCode::Add,
-        ]);
-    }
+//
+//    #[test]
+//    fn compile_expressions() {
+//        assert_compile("(+ 137 349)", vec![
+//            ByteCode::Constant(137.0),
+//            ByteCode::Constant(349.0),
+//            ByteCode::Add,
+//        ]);
+//    }
 
     fn compile(source: &str) -> Result<Vec<ByteCode>, Error> {
         debug!("Compiling: '{}'", source);

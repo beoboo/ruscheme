@@ -43,7 +43,7 @@ pub enum Expr {
     Bool(bool),
     Cond(Vec<Expr>, Vec<Expr>),
     Define(String, Box<Expr>),
-    Expression(Box<Expr>, Vec<Expr>),
+    Expression(Vec<Expr>),
     Function(String, fn(Vec<Expr>) -> Result<Expr, String>),
     Callable(Callable),
     Identifier(String),
@@ -95,12 +95,8 @@ impl fmt::Display for Expr {
             }
             Expr::Define(name, _) => write!(f, "{}", name),
             Expr::Empty => write!(f, "()"),
-            Expr::Expression(name, exprs) => {
-                if exprs.len() == 0 {
-                    write!(f, "({})", name)
-                } else {
-                    write!(f, "({} {})", name, join_exprs(exprs, " "))
-                }
+            Expr::Expression(exprs) => {
+                write!(f, "({})", join_exprs(exprs, " "))
             }
             Expr::Function(name, _) => write!(f, "native '{}'", name),
             Expr::Callable(callable) => write!(f, "native '{}'", callable.name),

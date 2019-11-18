@@ -1,4 +1,3 @@
-
 use log::debug;
 
 use crate::error::{Error, report_stage_error};
@@ -104,7 +103,7 @@ impl Parser {
             t => report_error(format!("'{}' is not callable.", t)),
         }?;
 
-        let mut exprs = Vec::new();
+        let mut exprs = vec![expr];
 
         loop {
             let token_type = peek(it);
@@ -120,7 +119,7 @@ impl Parser {
 
         consume(TokenType::Paren(')'), it, format!("Expected ')' after expression."))?;
 
-        Ok(Expr::Expression(Box::new(expr), exprs))
+        Ok(Expr::Expression(exprs))
     }
 
     fn form(&self, token_type: TokenType, it: &mut PeekableToken) -> Result<Expr, Error> {
@@ -161,9 +160,11 @@ impl Parser {
 
     fn call(&self, name: String, it: &mut PeekableToken) -> Result<Expr, Error> {
         debug!("call: '{}'", name);
-        let args = self.build_expressions(it)?;
+        let mut args = self.build_expressions(it)?;
 
-        Ok(Expr::Expression(Box::new(Expr::Identifier(name)), args))
+        args.insert(0, Expr::Identifier(name));
+
+        Ok(Expr::Expression(args))
     }
 
     fn cond(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
@@ -264,7 +265,7 @@ impl Parser {
                     exprs.push(expr);
                 }
                 t => {
-                    return report_error(format!("Found unexpected token '{}'", t))
+                    return report_error(format!("Found unexpected token '{}'", t));
                 }
             };
         }
@@ -276,7 +277,9 @@ impl Parser {
 
         let lambda = Expr::Lambda(args, body, None);
 
-        Ok(Expr::Expression(Box::new(lambda), exprs))
+        exprs.insert(0, lambda);
+
+        Ok(Expr::Expression(exprs))
     }
 
     fn let_variable(&self, it: &mut PeekableToken) -> Result<(Expr, Expr), Error> {
@@ -376,7 +379,6 @@ fn report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
 }
 
 
-
 #[cfg(test)]
 mod tests {
     use hamcrest2::prelude::*;
@@ -467,10 +469,10 @@ mod tests {
         assert_parse("(define a 1)", Expr::Define("a".to_string(), Box::new(Expr::Number(1.0))));
         assert_parse("(define a b)", Expr::Define("a".to_string(), Box::new(Expr::Identifier("b".to_string()))));
         assert_parse("(define a (+ 1))",
-                     Expr::Define("a".to_string(), Box::new(Expr::Expression(
-                         Box::new(Expr::Identifier("+".to_string())), vec![
-                             Expr::Number(1.0)
-                         ]))));
+                     Expr::Define("a".to_string(), Box::new(Expr::Expression(vec![
+                         Expr::Identifier("+".to_string()),
+                         Expr::Number(1.0)
+                     ]))));
         assert_parse("(define (one) 1)",
                      Expr::Define(
                          "one".to_string(),
@@ -486,10 +488,10 @@ mod tests {
                          "square".to_string(),
                          Box::new(Expr::Lambda(
                              vec![Expr::Identifier("x".to_string())],
-                             vec![Expr::Expression(
-                                 Box::new(Expr::Identifier("*".to_string())),
-                                 vec![Expr::Identifier("x".to_string()), Expr::Identifier("x".to_string())],
-                             )],
+                             vec![Expr::Expression(vec![
+                                 Expr::Identifier("*".to_string()),
+                                 Expr::Identifier("x".to_string()), Expr::Identifier("x".to_string())
+                             ])],
                              None,
                          )),
                      ),
@@ -499,10 +501,10 @@ mod tests {
                          "square".to_string(),
                          Box::new(Expr::Lambda(
                              vec![Expr::Identifier("x".to_string())],
-                             vec![Expr::Expression(
-                                 Box::new(Expr::Identifier("*".to_string())),
-                                 vec![Expr::Identifier("x".to_string()), Expr::Identifier("x".to_string())],
-                             )],
+                             vec![Expr::Expression(vec![
+                                 Expr::Identifier("*".to_string()),
+                                 Expr::Identifier("x".to_string()), Expr::Identifier("x".to_string())
+                             ])],
                              None,
                          )),
                      ),
@@ -512,15 +514,12 @@ mod tests {
                          "a".to_string(),
                          Box::new(Expr::Lambda(
                              vec![],
-                             vec![
-                                 Expr::Expression(Box::new(
-                                     Expr::If(Box::new(Expr::Bool(true)),
-                                              Box::new(Expr::Identifier("+".to_string())),
-                                              None)
-                                 ),
-                                                  vec![Expr::Number(1.0)],
-                                 )
-                             ],
+                             vec![Expr::Expression(vec![
+                                 Expr::If(Box::new(Expr::Bool(true)),
+                                          Box::new(Expr::Identifier("+".to_string())),
+                                          None),
+                                 Expr::Number(1.0)
+                             ])],
                              None,
                          )),
                      ),
@@ -531,10 +530,11 @@ mod tests {
                 (define b a)\
                 b",
                           vec![
-                              Expr::Define("a".to_string(), Box::new(Expr::Expression(
-                                  Box::new(Expr::Identifier("+".to_string())), vec![
-                                      Expr::Number(1.0)
-                                  ]))),
+                              Expr::Define("a".to_string(),
+                                           Box::new(Expr::Expression(vec![
+                                               Expr::Identifier("+".to_string()),
+                                               Expr::Number(1.0)
+                                           ]))),
                               Expr::Define("b".to_string(), Box::new(Expr::Identifier("a".to_string()))),
                               Expr::Identifier("b".to_string()),
                           ],
@@ -543,10 +543,12 @@ mod tests {
 
     #[test]
     fn parse_expressions() {
-        assert_parse("(one)", Expr::Expression(Box::new(Expr::Identifier("one".to_string())), vec![]));
+        assert_parse("(one)", Expr::Expression(vec![Expr::Identifier("one".to_string())]));
 
-        assert_parse("(+ 1 2)", Expr::Expression(Box::new(Expr::Identifier("+".to_string())), vec![
-            Expr::Number(1.0), Expr::Number(2.0)
+        assert_parse("(+ 1 2)", Expr::Expression(vec![
+            Expr::Identifier("+".to_string()),
+            Expr::Number(1.0),
+            Expr::Number(2.0)
         ]));
 
         assert_parse("(and true false)", Expr::And(vec![
@@ -565,10 +567,10 @@ mod tests {
                      Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Identifier("+".to_string())), None),
         );
 
-        assert_parse("((if true +) 1)", Expr::Expression(
-            Box::new(Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Identifier("+".to_string())), None)),
-            vec![Expr::Number(1.0)],
-        ));
+        assert_parse("((if true +) 1)", Expr::Expression(vec![
+            Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Identifier("+".to_string())), None),
+            Expr::Number(1.0)
+        ]));
     }
 
     #[test]
@@ -598,17 +600,11 @@ mod tests {
         assert_parse("(lambda (x) (+ x 4))",
                      Expr::Lambda(
                          vec![Expr::Identifier("x".to_string())],
-                         vec![
-                             Expr::Expression(
-                                 Box::new(
-                                     Expr::Identifier("+".to_string())
-                                 ),
-                                 vec![
-                                     Expr::Identifier("x".to_string()),
-                                     Expr::Number(4.0)
-                                 ],
-                             )
-                         ],
+                         vec![Expr::Expression(vec![
+                             Expr::Identifier("+".to_string()),
+                             Expr::Identifier("x".to_string()),
+                             Expr::Number(4.0)
+                         ])],
                          None,
                      ),
         );
@@ -617,35 +613,27 @@ mod tests {
     #[test]
     fn parse_lets() {
 //        env_logger::init();
-        assert_parse("(let () 1)",
-                     Expr::Expression(Box::new(Expr::Lambda(
-                         vec![],
-                         vec![
-                             Expr::Number(1.0)
-                         ],
-                         None,
-                     )),
-                                      vec![]),
-        );
-        assert_parse("(let ((x 3)) x)",
-                     Expr::Expression(Box::new(Expr::Lambda(
-                         vec![Expr::Identifier("x".to_string())],
-                         vec![
-                             Expr::Identifier("x".to_string())
-                         ],
-                         None,
-                     )),
-                                      vec![Expr::Number(3.0)]),
-        );
-        assert_parse("(let () x)",
-                     Expr::Expression(Box::new(Expr::Lambda(
-                         vec![],
-                         vec![
-                             Expr::Identifier("x".to_string())
-                         ],
-                         None,
-                     )),
-                                      vec![]),
+        assert_parse("(let () 1)", Expr::Expression(vec![
+            Expr::Lambda(
+                vec![],
+                vec![Expr::Number(1.0)],
+                None,
+            ),
+        ]));
+
+        assert_parse("(let ((x 3)) x)", Expr::Expression(vec![
+            Expr::Lambda(
+                vec![Expr::Identifier("x".to_string())],
+                vec![Expr::Identifier("x".to_string())],
+                None,
+            ), Expr::Number(3.0)
+        ]));
+        assert_parse("(let () x)", Expr::Expression(vec![
+            Expr::Lambda(
+                vec![],
+                vec![Expr::Identifier("x".to_string())],
+                None,
+            )]),
         );
     }
 

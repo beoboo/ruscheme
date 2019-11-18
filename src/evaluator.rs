@@ -27,7 +27,7 @@ impl Evaluator {
             Expr::Cond(predicate_branches, else_branch) => self.eval_cond(predicate_branches, else_branch, env),
             Expr::Define(name, expr) => self.eval_define(name, expr, env),
             Expr::Empty => Ok(expr.clone()),
-            Expr::Expression(expr, args) => self.eval_expression(expr, args, env),
+            Expr::Expression(exprs) => self.eval_expression(exprs, env),
             Expr::Function(_, _) => Ok(expr.clone()),
             Expr::Callable(_) => Ok(expr.clone()),
             Expr::Identifier(s) => self.eval_identifier(s, env),
@@ -45,17 +45,17 @@ impl Evaluator {
         }
     }
 
-    fn eval_expression(&self, expr: &Box<Expr>, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+    fn eval_expression(&self, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
         debug!("eval_expression (env: {})", env.index);
-        let expr = expr.as_ref();
+        let expr = &args[0];
 
         let res = match self.eval(expr, env) {
-            Ok(Expr::Function(_, f)) => self.eval_function(f, args, env),
-            Ok(Expr::Callable(c)) => self.eval_callable(c, args, env),
+            Ok(Expr::Function(_, f)) => self.eval_function(f, &args[1..], env),
+            Ok(Expr::Callable(c)) => self.eval_callable(c, &args[1..], env),
             Ok(Expr::Lambda(params, body, enclosing)) => {
                 let mut enclosing = if let Some(enclosing) = enclosing { enclosing.clone() } else { env.clone() };
                 debug!("Env: {}:{}", env.index, enclosing.index);
-                self.eval_lambda(args, params, body, &mut enclosing)
+                self.eval_lambda(&args[1..], params, body, &mut enclosing)
             }
             Ok(e) => Err(format!("Cannot execute: '{}'.", e)),
             _ => Err(format!("Cannot execute: '{}'.", expr))
@@ -127,7 +127,7 @@ impl Evaluator {
         }
     }
 
-    fn eval_lambda(&self, args: &Vec<Expr>, params: Vec<Expr>, body: Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+    fn eval_lambda(&self, args: &[Expr], params: Vec<Expr>, body: Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
         debug!("eval_lambda");
         if params.len() != args.len() {
             return Err(format!(
@@ -190,7 +190,7 @@ impl Evaluator {
         Ok(Expr::Bool(false))
     }
 
-    fn eval_function(&self, f: fn(Vec<Expr>) -> Result<Expr, String>, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+    fn eval_function(&self, f: fn(Vec<Expr>) -> Result<Expr, String>, args: &[Expr], env: &mut Environment) -> Result<Expr, String> {
         debug!("eval function");
         let mut evaluated_args = Vec::new();
         for arg in args {
@@ -199,7 +199,7 @@ impl Evaluator {
         f(evaluated_args)
     }
 
-    fn eval_callable(&self, callable: Callable, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, String> {
+    fn eval_callable(&self, callable: Callable, args: &[Expr], env: &mut Environment) -> Result<Expr, String> {
         debug!("eval callable");
         let mut evaluated_args = Vec::new();
         for arg in args {
@@ -266,14 +266,15 @@ mod tests {
 
         assert_definition("(define plus_one (+ 1))",
                           Expr::Identifier("plus_one".to_string()),
-                          Expr::Expression(Box::new(Expr::Identifier("+".to_string())), vec![Expr::Number(1.0)]),
+                          Expr::Expression(vec![Expr::Identifier("+".to_string()), Expr::Number(1.0)]),
         );
 
         assert_definition("(define (square x) (* x x))",
                           Expr::Identifier("square".to_string()),
                           Expr::Lambda(
                               vec![Expr::Identifier("x".to_string())],
-                              vec![(Expr::Expression(Box::new(Expr::Identifier("*".to_string())), vec![
+                              vec![(Expr::Expression(vec![
+                                  Expr::Identifier("*".to_string()),
                                   Expr::Identifier("x".to_string()),
                                   Expr::Identifier("x".to_string())
                               ]))],
@@ -299,10 +300,9 @@ mod tests {
 
         assert_that!(res.unwrap(), equal_to(
                      Expr::Lambda(vec![],
-                                  vec![
-                                      Expr::Expression(Box::new(Expr::Identifier("+".to_string())), vec![Expr::Number(1.0)
-                                      ])
-                                  ],
+                                  vec![Expr::Expression(vec![
+            Expr::Identifier("+".to_string()), Expr::Number(1.0)
+                                      ])],
                                   Some(globals.clone()),
                      ),
         ));
