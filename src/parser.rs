@@ -659,6 +659,15 @@ mod tests {
         assert_parse("'a",
                      Expr::Quote(Box::new(Expr::Identifier("a".to_string()))),
         );
+        assert_parse("(quote (a b c)",
+                     Expr::Quote(Box::new(
+                         Expr::Expression(vec![
+                             Expr::Identifier("a".to_string()),
+                             Expr::Identifier("b".to_string()),
+                             Expr::Identifier("c".to_string()),
+                         ])
+                     )),
+        );
     }
 
     fn parse(source: &str) -> Result<Vec<Expr>, Error> {
