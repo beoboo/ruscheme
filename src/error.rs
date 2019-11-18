@@ -39,6 +39,7 @@ pub fn report_stage_error<S: Into<String>, T>(err: S, stage: &str) -> Result<T, 
     match stage {
         "analyzer" => Err(Error::Analyzer(error)),
         "compiler" => Err(Error::Compiler(error)),
+        "evaluator" => Err(Error::Evaluator(error)),
         "parser" => Err(Error::Parser(error)),
         _ => Err(Error::UndefinedStage(stage.into()))
     }

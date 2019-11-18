@@ -6,7 +6,7 @@ use std::time::SystemTime;
 
 use log::debug;
 
-use crate::expr::{BoxedAction, Callable, Expr};
+use crate::expr::{BoxedAction, Callable, Expr, build_pair, build_cons};
 
 macro_rules! compare_floats {
     ($check_fn:expr) => {{
@@ -100,6 +100,7 @@ impl Environment {
 //        environment.define_func("cddr", cddr());
         environment.define_func("cons", cons());
         environment.define_func("display", display());
+        environment.define_func("eq?", is_eq());
 //        environment.define_func("filter", filter());
 //        environment.define_func("flatmap", flatmap());
         environment.define_func("length", length());
@@ -107,8 +108,8 @@ impl Environment {
 //        environment.define_func("map", map());
         environment.define_func("newline", newline());
         environment.define_func("nil", nil());
-        environment.define_func("null?", null());
-        environment.define_func("pair?", pair());
+        environment.define_func("null?", is_null());
+        environment.define_func("pair?", is_pair());
         environment.define_func("remainder", remainder());
         let now = SystemTime::now();
         environment.define_callable("runtime", Box::new(move |args| runtime(now, args)));
@@ -177,7 +178,7 @@ fn append() -> fn(Vec<Expr>) -> Result<Expr, String> {
         } else {
             match first {
                 Expr::Pair(head, tail) => {
-                    Ok(_build_pair(head.as_ref().clone(), append_iter(tail.as_ref(), second)?))
+                    Ok(build_pair(head.as_ref().clone(), append_iter(tail.as_ref(), second)?))
                 }
                 _ => return Err(format!("Argument is not a list."))
             }
@@ -210,7 +211,7 @@ fn cons() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
         _validate_num_args(&args, 2)?;
 
-        Ok(_build_pair(args[0].clone(), args[1].clone()))
+        Ok(build_pair(args[0].clone(), args[1].clone()))
     }
 }
 
@@ -252,6 +253,30 @@ fn display() -> fn(Vec<Expr>) -> Result<Expr, String> {
 //    }
 //}
 
+fn is_eq() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        _validate_num_args(&args, 2)?;
+
+        Ok(Expr::Bool(args[0] == args[1]))
+    }
+}
+
+fn is_null() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        _validate_num_args(&args, 1)?;
+
+        Ok(Expr::Bool(args[0] == Expr::Empty))
+    }
+}
+
+fn is_pair() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        _validate_num_args(&args, 1)?;
+
+        Ok(Expr::Bool(args[0].is_pair()))
+    }
+}
+
 fn length() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
         _validate_num_args(&args, 1)?;
@@ -274,7 +299,7 @@ fn length() -> fn(Vec<Expr>) -> Result<Expr, String> {
 
 fn list() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
-        Ok(_build_cons(args.as_slice()))
+        Ok(build_cons(args.as_slice()))
     }
 }
 
@@ -312,22 +337,6 @@ fn newline() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |_| {
         println!();
         Ok(Expr::None)
-    }
-}
-
-fn null() -> fn(Vec<Expr>) -> Result<Expr, String> {
-    |args: Vec<Expr>| -> Result<Expr, String> {
-        _validate_num_args(&args, 1)?;
-
-        Ok(Expr::Bool(args[0] == Expr::Empty))
-    }
-}
-
-fn pair() -> fn(Vec<Expr>) -> Result<Expr, String> {
-    |args: Vec<Expr>| -> Result<Expr, String> {
-        _validate_num_args(&args, 1)?;
-
-        Ok(Expr::Bool(args[0].is_pair()))
     }
 }
 
@@ -422,18 +431,6 @@ fn _car(expr: &Expr, ch: char) -> Result<Expr, String>{
         },
         _ => Err(format!("Argument is not a pair."))
     }
-}
-
-fn _build_cons(args: &[Expr]) -> Expr {
-    if args.len() == 0 {
-        Expr::Empty
-    } else {
-        _build_pair(args[0].clone(), _build_cons(&args[1..]))
-    }
-}
-
-fn _build_pair(head: Expr, tail: Expr) -> Expr {
-    Expr::Pair(Box::new(head), Box::new(tail))
 }
 
 #[cfg(test)]

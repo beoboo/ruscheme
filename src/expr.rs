@@ -162,6 +162,17 @@ fn join_exprs(exprs: &Vec<Expr>, sep: &str) -> String {
     res.join(sep)
 }
 
+pub fn build_cons(args: &[Expr]) -> Expr {
+    if args.len() == 0 {
+        Expr::Empty
+    } else {
+        build_pair(args[0].clone(), build_cons(&args[1..]))
+    }
+}
+
+pub fn build_pair(head: Expr, tail: Expr) -> Expr {
+    Expr::Pair(Box::new(head), Box::new(tail))
+}
 
 #[cfg(test)]
 mod tests {

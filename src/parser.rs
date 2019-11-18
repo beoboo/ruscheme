@@ -15,14 +15,14 @@ impl Parser {
 
     pub fn parse(&self, tokens: Vec<Token>) -> Result<Vec<Expr>, Error> {
         if tokens.len() == 0 {
-            return report_error("No tokens available.");
+            return _report_error("No tokens available.");
         }
 
         let mut it = tokens.iter().peekable();
 
         let token_type = peek(&mut it);
         if token_type == TokenType::EOF {
-            return report_error("Unexpected EOF.");
+            return _report_error("Unexpected EOF.");
         }
 
         self.expression_list(&mut it)
@@ -52,11 +52,11 @@ impl Parser {
             TokenType::Identifier(i) => Ok(Expr::Identifier(i)),
             TokenType::Number(n) => Ok(Expr::Number(n)),
             TokenType::String(s) => Ok(Expr::String(s)),
-            TokenType::Define => report_error("'define' cannot be used outside expressions."),
+            TokenType::Define => _report_error("'define' cannot be used outside expressions."),
             TokenType::Paren('(') => self.expression(it),
             TokenType::SingleQuote => self.quote(it),
             TokenType::EOF => Err(UnterminatedInput),
-            t => report_error(format!("Undefined token type: '{}'.", t))
+            t => _report_error(format!("Undefined token type: '{}'.", t))
         }
     }
 
@@ -98,7 +98,7 @@ impl Parser {
             TokenType::Paren('(') => self.expression(it),
             TokenType::Quote => return self.form(token_type, it),
             TokenType::EOF => Err(Error::UnterminatedInput),
-            t => report_error(format!("'{}' is not callable.", t)),
+            t => _report_error(format!("'{}' is not callable.", t)),
         }?;
 
         let mut exprs = vec![expr];
@@ -137,7 +137,7 @@ impl Parser {
             TokenType::Not => self.not(it),
             TokenType::Or => self.or(it),
             TokenType::Quote => self.quote(it),
-            t => return report_error(format!("Undefined form '{}'.", t))
+            t => return _report_error(format!("Undefined form '{}'.", t))
         };
 
         if res.is_err() {
@@ -180,7 +180,7 @@ impl Parser {
                     match peek(it) {
                         TokenType::Else => {
                             // Consume the 'else'.
-                            it.next();
+                            advance(it)?;
 
                             else_branch = self.build_expressions(it)?;
 
@@ -188,7 +188,7 @@ impl Parser {
                         }
                         _ => {
                             if else_branch.len() > 0 {
-                                return report_error(format!("Misplaced 'else' clause."));
+                                return _report_error(format!("Misplaced 'else' clause."));
                             }
 
                             let branch = self.predicate(it)?;
@@ -198,12 +198,12 @@ impl Parser {
                 }
                 TokenType::Paren(')') => break,
                 TokenType::EOF => return Err(UnterminatedInput),
-                _ => return report_error("Expected ')' after cond.")
+                _ => return _report_error("Expected ')' after cond.")
             };
         }
 
         if predicate_branches.len() == 0 && else_branch.len() == 0 {
-            return report_error("'cond' must have at least one clause.");
+            return _report_error("'cond' must have at least one clause.");
         }
 
         debug!("Predicates {:?}", predicate_branches);
@@ -218,7 +218,7 @@ impl Parser {
             Ok(TokenType::Identifier(i)) => self._define_expression(&i, it),
             Ok(TokenType::Paren('(')) => self._define_lambda(it),
             Ok(TokenType::EOF) => return Err(UnterminatedInput),
-            t => return report_error(format!("Expected name or '(' after define (found: {:?}).", t))
+            t => return _report_error(format!("Expected name or '(' after define (found: {:?}).", t))
         }
     }
 
@@ -228,7 +228,7 @@ impl Parser {
         let predicate = match self.primitive(it) {
             Ok(e) => e,
             Err(UnterminatedInput) => return Err(UnterminatedInput),
-            _ => return report_error(format!("Expected predicate after 'if'."))
+            _ => return _report_error(format!("Expected predicate after 'if'."))
         };
 
         let then_branch = match self.primitive(it) {
@@ -236,7 +236,7 @@ impl Parser {
             Err(UnterminatedInput) => return Err(UnterminatedInput),
             e => {
                 println!("{:?}", e);
-                return report_error(format!("Expected expression after 'if'."));
+                return _report_error(format!("Expected expression after 'if'."));
             }
         };
 
@@ -259,7 +259,7 @@ impl Parser {
         consume(TokenType::Paren(')'), it, format!("Expected ')' after lambda parameters."))?;
 
         if peek(it) == TokenType::Paren(')') {
-            return report_error(format!("Expected lambda body."));
+            return _report_error(format!("Expected lambda body."));
         }
 
         let body = self.build_expressions(it)?;
@@ -282,7 +282,7 @@ impl Parser {
                     exprs.push(expr);
                 }
                 t => {
-                    return report_error(format!("Found unexpected token '{}'", t));
+                    return _report_error(format!("Found unexpected token '{}'", t));
                 }
             };
         }
@@ -344,7 +344,7 @@ impl Parser {
             TokenType::Paren('(') => self._quote_expression(it)?,
 //            TokenType::SingleQuote => self.quote(it),
             TokenType::EOF => return Err(UnterminatedInput),
-            t => return report_error(format!("Undefined token type: '{}'.", t))
+            t => return _report_error(format!("Undefined token type: '{}'.", t))
         };
 
         debug!("end quote: {}", expr);
@@ -418,14 +418,14 @@ impl Parser {
                         consume(TokenType::Paren('('), it, format!("Expected '(' after 'lambda'."))?;
                         self.lambda(it)?
                     }
-                    t => return report_error(format!("Expected expression name (found '{}').", t))
+                    t => return _report_error(format!("Expected expression name (found '{}').", t))
                 };
 
                 consume(TokenType::Paren(')'), it, format!("Expected ')' after expression."))?;
 
                 expr
             }
-            _ => return report_error(format!("Expected expression after name."))
+            _ => return _report_error(format!("Expected expression after name."))
         };
 
         Ok(Expr::Define(name.to_string(), Box::new(expr)))
@@ -435,7 +435,7 @@ impl Parser {
         let name = match advance(it) {
             Ok(TokenType::Identifier(i)) => Expr::Identifier(i),
             Ok(TokenType::EOF) => return Err(UnterminatedInput),
-            _ => return report_error(format!("Expected lambda name."))
+            _ => return _report_error(format!("Expected lambda name."))
         };
 
         let lambda = self.lambda(it)?;
@@ -444,7 +444,7 @@ impl Parser {
     }
 }
 
-fn report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
+fn _report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
     report_stage_error(err, "parser")
 }
 
