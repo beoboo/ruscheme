@@ -32,6 +32,7 @@ impl Lexer {
                     comment(&mut it);
                     continue;
                 }
+                '\'' => quote(&mut it),
                 '"' => string(&mut it),
                 '\n' => {
                     line += 1;
@@ -82,6 +83,7 @@ fn identifier(it: &mut PeekableChar) -> Result<TokenType, Error> {
         "let" => TokenType::Let,
         "not" => TokenType::Not,
         "or" => TokenType::Or,
+        "quote" => TokenType::Quote,
         "true" => TokenType::Bool(true),
         _ => TokenType::Identifier(id)
     };
@@ -125,8 +127,13 @@ fn number(it: &mut PeekableChar) -> Result<TokenType, Error> {
     Ok(TokenType::Number(number))
 }
 
+fn quote(it: &mut PeekableChar) -> Result<TokenType, Error> {
+    advance(it);
+    Ok(TokenType::SingleQuote)
+}
+
 fn paren(c: char, it: &mut PeekableChar) -> Result<TokenType, Error> {
-    it.next();
+    advance(it);
     Ok(TokenType::Paren(c))
 }
 
@@ -296,6 +303,20 @@ mod tests {
         assert_lex("()", vec![
             TokenType::Paren('('),
             TokenType::Paren(')'),
+        ]);
+    }
+
+    #[test]
+    fn lex_quote() {
+        assert_lex("(quote a)", vec![
+            TokenType::Paren('('),
+            TokenType::Quote,
+            TokenType::Identifier("a".to_string()),
+            TokenType::Paren(')'),
+        ]);
+        assert_lex("'a", vec![
+            TokenType::SingleQuote,
+            TokenType::Identifier("a".to_string()),
         ]);
     }
 

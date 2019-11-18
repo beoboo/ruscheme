@@ -21,6 +21,8 @@ pub enum TokenType {
     Number(f64),
     Or,
     Paren(char),
+    Quote,
+    SingleQuote,
     String(String),
     EOF,
 }
@@ -55,6 +57,8 @@ impl fmt::Display for TokenType {
             TokenType::Not => write!(f, "not"),
             TokenType::Number(n) => write!(f, "{}", n),
             TokenType::Or => write!(f, "or"),
+            TokenType::Quote => write!(f, "quote"),
+            TokenType::SingleQuote => write!(f, "'"),
             TokenType::Paren(p) => write!(f, "{}", p),
             TokenType::String(s) => write!(f, "{}", s),
             TokenType::EOF => write!(f, "EOF"),
