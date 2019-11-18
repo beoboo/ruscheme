@@ -718,7 +718,7 @@ mod tests {
 
     #[test]
     fn parse_quotes() {
-        env_logger::init();
+//        env_logger::init();
         assert_parse("(quote a)",
                      Expr::Quote(Box::new(Expr::Identifier("a".to_string()))),
         );
