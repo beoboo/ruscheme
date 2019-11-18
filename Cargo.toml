@@ -13,3 +13,8 @@ regex = "*"
 
 [dev-dependencies]
 hamcrest2 = "*"
+
+[features]
+default = []
+
+compiler = []

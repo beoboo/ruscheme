@@ -7,14 +7,14 @@ use std::io::Write;
 
 use colored::*;
 
-use crate::environment::Environment;
-use crate::error::Error;
+use crate::compiler::*;
+use crate::environment::*;
+use crate::error::*;
 use crate::evaluator::*;
 use crate::lexer::*;
 use crate::parser::*;
+use crate::virtual_machine::*;
 
-mod byte_code;
-mod compiler;
 mod environment;
 mod error;
 mod evaluator;
@@ -22,7 +22,11 @@ mod expr;
 mod lexer;
 mod parser;
 mod token;
+
+mod byte_code;
+mod compiler;
 mod virtual_machine;
+
 
 fn main() {
     env_logger::init();
@@ -60,7 +64,7 @@ fn repl() {
                             eprintln!("{}", format!("{}", e).red());
                             source = String::new();
                             prompt = "> ";
-                        },
+                        }
                     }
                 }
                 _ => {
@@ -84,9 +88,10 @@ fn run_file(filename: &String) {
     };
 }
 
+#[cfg(not(feature="compiler"))]
 fn run(source: &str, globals: &mut Environment, print_output: bool) -> Result<(), Error> {
     let lexer: Lexer = Lexer::new();
-    let tokens= lexer.lex(source)?;
+    let tokens = lexer.lex(source)?;
 
 //    println!("{} token{}:", &tokens.len(), if tokens.len() != 1 { "s" } else { "" });
 //    for token in &tokens {
@@ -117,9 +122,50 @@ fn run(source: &str, globals: &mut Environment, print_output: bool) -> Result<()
                 if print_output {
                     println!("{}", res.to_string().green());
                 }
-            },
+            }
             Err(e) => return Err(e)
         }
+    }
+
+    Ok(())
+}
+
+#[cfg(feature="compiler")]
+fn run(source: &str, globals: &mut Environment, print_output: bool) -> Result<(), Error> {
+    let lexer: Lexer = Lexer::new();
+    let tokens = lexer.lex(source)?;
+
+//    println!("{} token{}:", &tokens.len(), if tokens.len() != 1 { "s" } else { "" });
+//    for token in &tokens {
+//        println!("- {:?}", token);
+//    }
+//    println!();
+
+    // Handle EOF.
+    if tokens.len() == 1 {
+        return Ok(());
+    }
+
+    let compiler: Compiler = Compiler::new();
+    let instructions = compiler.compile(tokens)?;
+
+//
+//    println!("{} expression{}:", &expressions.len(), if expressions.len() != 1 { "s" } else { "" });
+//    for expr in &expressions {
+//        println!("- {:?}", expr);
+//    }
+//    println!();
+
+    let vm: VirtualMachine = VirtualMachine::new();
+
+    match vm.execute(instructions) {
+//        Ok(res) => {
+//            if print_output {
+//                println!("{}", res.to_string().green());
+//            }
+//        },
+        Err(e) => return Err(e),
+        _ => {}
     }
 
     Ok(())

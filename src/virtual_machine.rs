@@ -1,16 +1,31 @@
+use crate::byte_code::{ByteCode, Instructions};
 use crate::error::Error;
-use crate::byte_code::ByteCode;
 
 #[derive(Debug)]
 pub struct VirtualMachine {}
 
 impl VirtualMachine {
-    fn new() -> VirtualMachine {
+    pub(crate) fn new() -> VirtualMachine {
         VirtualMachine {}
     }
 
-    fn execute(&self, tokens: Vec<ByteCode>) -> Result<(), Error> {
-        Err(Error::VirtualMachine(format!("Error")))
+    pub(crate) fn execute(&self, instructions: Instructions) -> Result<(), Error> {
+        if instructions.len() == 0 {
+            return Err(Error::VirtualMachine(format!("No instructions to execute")))
+        }
+
+        self._execute(&instructions[0])
+    }
+
+    fn _execute(&self, instruction: &ByteCode) -> Result<(), Error> {
+        match instruction {
+            ByteCode::Constant(c) => {
+                println!("{}", c);
+            },
+            _ => return Err(Error::VirtualMachine(format!("Undefined instruction: '{}'", instruction)))
+        }
+
+        Ok(())
     }
 }
 
