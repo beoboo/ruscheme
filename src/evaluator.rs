@@ -381,6 +381,19 @@ mod tests {
     }
 
     #[test]
+    fn eval_quote() {
+//        env_logger::init();
+        assert_output("(list)", "()");
+        assert_output("(list 1)", "(1)");
+        assert_output("(list 1 2)", "(1 2)");
+        assert_output("(list 1 2 3)", "(1 2 3)");
+        assert_output("(cons () ())", "(())");
+        assert_output("(cons 1 ())", "(1)");
+        assert_output("(cons 1 2)", "(1 . 2)");
+        assert_output("(cons 1 (cons 2 ()))", "(1 2)");
+    }
+
+    #[test]
     fn eval_callable() {
         let mut globals = Environment::global();
         let res = eval("(runtime)", &mut globals);

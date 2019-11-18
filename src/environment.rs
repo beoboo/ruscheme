@@ -483,7 +483,7 @@ mod tests {
 
     #[test]
     fn test_functions() {
-        env_logger::init();
+//        env_logger::init();
         assert_eval("(+ 1 2)", Expr::Number(3.0));
         assert_eval("(= 1 2)", Expr::Bool(false));
         assert_eval("(< 1 2)", Expr::Bool(true));

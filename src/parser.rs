@@ -175,7 +175,7 @@ impl Parser {
             match peek(it) {
                 TokenType::Paren('(') => {
                     // Consume the '('.
-                    advance(it).unwrap();
+                    advance(it)?;
 
                     match peek(it) {
                         TokenType::Else => {
@@ -215,8 +215,8 @@ impl Parser {
     fn define(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
         debug!("definition");
         match advance(it) {
-            Ok(TokenType::Identifier(i)) => self.define_expression(&i, it),
-            Ok(TokenType::Paren('(')) => self.define_lambda(it),
+            Ok(TokenType::Identifier(i)) => self._define_expression(&i, it),
+            Ok(TokenType::Paren('(')) => self._define_lambda(it),
             Ok(TokenType::EOF) => return Err(UnterminatedInput),
             t => return report_error(format!("Expected name or '(' after define (found: {:?}).", t))
         }
@@ -248,6 +248,24 @@ impl Parser {
         }
 
         Ok(Expr::If(Box::new(predicate), Box::new(then_branch), else_branch))
+    }
+
+    fn lambda(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
+        debug!("lambda");
+
+        let params = self.build_expressions(it)?;
+        debug!("params '{:?}'", params);
+
+        consume(TokenType::Paren(')'), it, format!("Expected ')' after lambda parameters."))?;
+
+        if peek(it) == TokenType::Paren(')') {
+            return report_error(format!("Expected lambda body."));
+        }
+
+        let body = self.build_expressions(it)?;
+        debug!("body '{:?}'", body);
+
+        Ok(Expr::Lambda(params, body, None))
     }
 
     fn define_let(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
@@ -316,12 +334,77 @@ impl Parser {
     }
 
     fn quote(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
-        let expr = self.primitive(it)?;
+        debug!("quote");
 
+        let expr = match advance(it)? {
+            TokenType::Bool(b) => Expr::Bool(b),
+            TokenType::Identifier(i) => Expr::Identifier(i),
+            TokenType::Number(n) => Expr::Number(n),
+            TokenType::String(s) => Expr::String(s),
+            TokenType::Paren('(') => self._quote_expression(it)?,
+//            TokenType::SingleQuote => self.quote(it),
+            TokenType::EOF => return Err(UnterminatedInput),
+            t => return report_error(format!("Undefined token type: '{}'.", t))
+        };
+
+        debug!("end quote: {}", expr);
         Ok(Expr::Quote(Box::new(expr)))
     }
 
-    fn define_expression(&self, name: &str, it: &mut PeekableToken) -> Result<Expr, Error> {
+    fn _quote_expression(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
+        let mut exprs = vec![];
+        debug!("quote_expression");
+
+        loop {
+            let expr = match peek(it) {
+                TokenType::Paren(')') => break,
+                TokenType::EOF => break,
+                TokenType::Paren('(') => {
+                    advance(it)?;
+                    Expr::Identifier(self._quote_subexpression(it)?)
+                },
+                t => {
+                    advance(it)?;
+                    Expr::Identifier(t.to_string())
+                }
+            };
+
+            exprs.push(expr);
+        }
+
+        consume(TokenType::Paren(')'), it, format!("Expected ')' after quoted expression."))?;
+
+        debug!("end quoted expression: {:?}", exprs);
+        Ok(Expr::Expression(exprs))
+    }
+
+    fn _quote_subexpression(&self, it: &mut PeekableToken) -> Result<String, Error> {
+        let mut tokens = vec![];
+        debug!("quote_subexpression");
+
+        loop {
+            match peek(it) {
+                TokenType::EOF => break,
+                TokenType::Paren(')') => {
+                    advance(it)?;
+                    break;
+                },
+                TokenType::Paren('(') => {
+                    advance(it)?;
+                    tokens.push(self._quote_subexpression(it)?)
+                },
+                t => {
+                    advance(it)?;
+                    tokens.push(t.to_string())
+                }
+            }
+        }
+
+        debug!("end quoted subexpression: {}", tokens.join(" "));
+        Ok(format!("({})", tokens.join(" ")))
+    }
+
+    fn _define_expression(&self, name: &str, it: &mut PeekableToken) -> Result<Expr, Error> {
         debug!("define expression: {}", name);
         let expr = match advance(it) {
             Ok(TokenType::Number(n)) => Expr::Number(n),
@@ -348,7 +431,7 @@ impl Parser {
         Ok(Expr::Define(name.to_string(), Box::new(expr)))
     }
 
-    fn define_lambda(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
+    fn _define_lambda(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
         let name = match advance(it) {
             Ok(TokenType::Identifier(i)) => Expr::Identifier(i),
             Ok(TokenType::EOF) => return Err(UnterminatedInput),
@@ -358,24 +441,6 @@ impl Parser {
         let lambda = self.lambda(it)?;
 
         Ok(Expr::Define(name.to_string(), Box::new(lambda)))
-    }
-
-    fn lambda(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
-        debug!("lambda");
-
-        let params = self.build_expressions(it)?;
-        debug!("params '{:?}'", params);
-
-        consume(TokenType::Paren(')'), it, format!("Expected ')' after lambda parameters."))?;
-
-        if peek(it) == TokenType::Paren(')') {
-            return report_error(format!("Expected lambda body."));
-        }
-
-        let body = self.build_expressions(it)?;
-        debug!("body '{:?}'", body);
-
-        Ok(Expr::Lambda(params, body, None))
     }
 }
 
@@ -653,18 +718,37 @@ mod tests {
 
     #[test]
     fn parse_quotes() {
+        env_logger::init();
         assert_parse("(quote a)",
                      Expr::Quote(Box::new(Expr::Identifier("a".to_string()))),
         );
         assert_parse("'a",
                      Expr::Quote(Box::new(Expr::Identifier("a".to_string()))),
         );
-        assert_parse("(quote (a b c)",
+        assert_parse("(quote (a b c))",
                      Expr::Quote(Box::new(
                          Expr::Expression(vec![
                              Expr::Identifier("a".to_string()),
                              Expr::Identifier("b".to_string()),
                              Expr::Identifier("c".to_string()),
+                         ])
+                     )),
+        );
+        assert_parse("(quote (lambda x y))",
+                     Expr::Quote(Box::new(
+                         Expr::Expression(vec![
+                             Expr::Identifier("lambda".to_string()),
+                             Expr::Identifier("x".to_string()),
+                             Expr::Identifier("y".to_string()),
+                         ])
+                     )),
+        );
+        assert_parse("(quote ((define x y) a ()))",
+                     Expr::Quote(Box::new(
+                         Expr::Expression(vec![
+                             Expr::Identifier("(define x y)".to_string()),
+                             Expr::Identifier("a".to_string()),
+                             Expr::Identifier("()".to_string()),
                          ])
                      )),
         );
