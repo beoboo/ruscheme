@@ -138,7 +138,11 @@ impl Parser {
             TokenType::Or => self.or(it),
             TokenType::Quote => self.quote(it),
             t => return report_error(format!("Undefined form '{}'.", t))
-        }?;
+        };
+
+        if res.is_err() {
+            return res;
+        }
 
         consume(TokenType::Paren(')'), it, format!("Expected ')' after '{}' form.", token_type))?;
 
