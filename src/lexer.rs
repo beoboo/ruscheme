@@ -127,9 +127,23 @@ fn number(it: &mut PeekableChar) -> Result<TokenType, Error> {
     Ok(TokenType::Number(number))
 }
 
+fn desugarize(source: &str) {
+    let chars = source.chars();
+
+    chars.enumerate().flat_map(|(i, ch)| {
+        if ch == '\'' {
+            "(quote ".chars().into_iter()
+        } else {
+            std::iter::Chars(ch)
+        }
+    }).collect()
+}
+
 fn quote(it: &mut PeekableChar) -> Result<TokenType, Error> {
+    // Consume the '.
     advance(it);
-    Ok(TokenType::SingleQuote)
+
+    Ok(TokenType::Quote)
 }
 
 fn paren(c: char, it: &mut PeekableChar) -> Result<TokenType, Error> {
@@ -315,8 +329,10 @@ mod tests {
             TokenType::Paren(')'),
         ]);
         assert_lex("'a", vec![
-            TokenType::SingleQuote,
+            TokenType::Paren('('),
+            TokenType::Quote,
             TokenType::Identifier("a".to_string()),
+            TokenType::Paren(')'),
         ]);
     }
 

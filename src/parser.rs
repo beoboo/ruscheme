@@ -54,7 +54,6 @@ impl Parser {
             TokenType::String(s) => Ok(Expr::String(s)),
             TokenType::Define => _report_error("'define' cannot be used outside expressions."),
             TokenType::Paren('(') => self.expression(it),
-            TokenType::SingleQuote => self.quote(it),
             TokenType::EOF => Err(UnterminatedInput),
             t => _report_error(format!("Undefined token type: '{}'.", t))
         }
@@ -338,11 +337,10 @@ impl Parser {
 
         let expr = match advance(it)? {
             TokenType::Bool(b) => Expr::Bool(b),
-            TokenType::Identifier(i) => Expr::Identifier(i),
+            TokenType::Identifier(i) => Expr::QuotedIdentifier(i),
             TokenType::Number(n) => Expr::Number(n),
             TokenType::String(s) => Expr::String(s),
             TokenType::Paren('(') => self._quote_expression(it)?,
-//            TokenType::SingleQuote => self.quote(it),
             TokenType::EOF => return Err(UnterminatedInput),
             t => return _report_error(format!("Undefined token type: '{}'.", t))
         };
@@ -361,11 +359,11 @@ impl Parser {
                 TokenType::EOF => break,
                 TokenType::Paren('(') => {
                     advance(it)?;
-                    Expr::Identifier(self._quote_subexpression(it)?)
+                    Expr::QuotedIdentifier(self._quote_subexpression(it)?)
                 },
                 t => {
                     advance(it)?;
-                    Expr::Identifier(t.to_string())
+                    Expr::QuotedIdentifier(t.to_string())
                 }
             };
 
@@ -720,35 +718,43 @@ mod tests {
     fn parse_quotes() {
 //        env_logger::init();
         assert_parse("(quote a)",
-                     Expr::Quote(Box::new(Expr::Identifier("a".to_string()))),
+                     Expr::Quote(Box::new(Expr::QuotedIdentifier("a".to_string()))),
         );
         assert_parse("'a",
-                     Expr::Quote(Box::new(Expr::Identifier("a".to_string()))),
+                     Expr::Quote(Box::new(Expr::QuotedIdentifier("a".to_string()))),
         );
         assert_parse("(quote (a b c))",
                      Expr::Quote(Box::new(
                          Expr::Expression(vec![
-                             Expr::Identifier("a".to_string()),
-                             Expr::Identifier("b".to_string()),
-                             Expr::Identifier("c".to_string()),
+                             Expr::QuotedIdentifier("a".to_string()),
+                             Expr::QuotedIdentifier("b".to_string()),
+                             Expr::QuotedIdentifier("c".to_string()),
                          ])
                      )),
         );
         assert_parse("(quote (lambda x y))",
                      Expr::Quote(Box::new(
                          Expr::Expression(vec![
-                             Expr::Identifier("lambda".to_string()),
-                             Expr::Identifier("x".to_string()),
-                             Expr::Identifier("y".to_string()),
+                             Expr::QuotedIdentifier("lambda".to_string()),
+                             Expr::QuotedIdentifier("x".to_string()),
+                             Expr::QuotedIdentifier("y".to_string()),
                          ])
                      )),
         );
         assert_parse("(quote ((define x y) a ()))",
                      Expr::Quote(Box::new(
                          Expr::Expression(vec![
-                             Expr::Identifier("(define x y)".to_string()),
-                             Expr::Identifier("a".to_string()),
-                             Expr::Identifier("()".to_string()),
+                             Expr::QuotedIdentifier("(define x y)".to_string()),
+                             Expr::QuotedIdentifier("a".to_string()),
+                             Expr::QuotedIdentifier("()".to_string()),
+                         ])
+                     )),
+        );
+        assert_parse("''a",
+                     Expr::Quote(Box::new(
+                         Expr::Expression(vec![
+                             Expr::QuotedIdentifier("quote".to_string()),
+                             Expr::QuotedIdentifier("a".to_string()),
                          ])
                      )),
         );

@@ -38,6 +38,7 @@ impl Evaluator {
             Expr::Or(exprs) => self.eval_or(exprs, env),
             Expr::Pair(_, _) => Ok(expr.clone()),
             Expr::Quote(expr) => self.eval_quote(expr, env),
+            Expr::QuotedIdentifier(s) => Ok(expr.clone()),
             Expr::String(_) => Ok(expr.clone()),
             e => panic!("Unmapped expression: {}", e)
         }
@@ -192,7 +193,7 @@ impl Evaluator {
         let expr = expr.as_ref();
 
         match expr {
-            Expr::Identifier(i) => Ok(expr.clone()),
+            Expr::QuotedIdentifier(i) => Ok(expr.clone()),
             Expr::Expression(exprs) => Ok(build_cons(exprs)),
             e => _report_error(format!("Invalid quote: '{}'", e))
         }
