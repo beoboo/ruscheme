@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 use std::str::Chars;
 
-use crate::error::Error;
+use crate::error::{Error, report_stage_error};
 use crate::token::*;
 
 #[derive(Debug)]
@@ -19,13 +19,14 @@ impl Lexer {
         let mut tokens = Vec::new();
         let mut line = 1;
 
-        while let Some(&c) = it.peek() {
-            let res = match c {
+        loop {
+            let ch = peek(&mut it);
+            let token_type = match ch {
                 '+' | '-' | '0'..='9' => number(&mut it),
                 '*' | '/' | '=' | '<' | '>' => symbol(&mut it),
-                '(' | ')' => paren(c, &mut it),
+                '(' | ')' => paren(ch, &mut it),
                 ' ' | '\t' => {
-                    it.next();
+                    advance(&mut it);
                     continue;
                 }
                 ';' => {
@@ -36,27 +37,29 @@ impl Lexer {
                 '"' => string(&mut it),
                 '\n' => {
                     line += 1;
-                    it.next();
+                    advance(&mut it);
                     continue;
                 }
+                '\0' => break,
                 _ => {
                     if is_alphanum(peek(&mut it)) {
                         identifier(&mut it)
                     } else {
-                        return Err(Error::Lexer(format!("Invalid token: '{}'.", advance(&mut it))));
+                        return _report_error(format!("Invalid token: '{}'.", advance(&mut it)));
                     }
-                }
-            };
+                },
+            }?;
 
-            match res {
-                Ok(t) => tokens.push(build_token(t, line)),
-                Err(e) => return Err(e)
-            }
+            tokens.push(build_token(token_type, line));
         }
 
         tokens.push(build_token(TokenType::EOF, line));
         Ok(tokens.clone())
     }
+}
+
+fn _report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
+    report_stage_error(err, "lexer")
 }
 
 fn comment(it: &mut PeekableChar) {
@@ -127,23 +130,11 @@ fn number(it: &mut PeekableChar) -> Result<TokenType, Error> {
     Ok(TokenType::Number(number))
 }
 
-fn desugarize(source: &str) {
-    let chars = source.chars();
-
-    chars.enumerate().flat_map(|(i, ch)| {
-        if ch == '\'' {
-            "(quote ".chars().into_iter()
-        } else {
-            std::iter::Chars(ch)
-        }
-    }).collect()
-}
-
 fn quote(it: &mut PeekableChar) -> Result<TokenType, Error> {
     // Consume the '.
     advance(it);
 
-    Ok(TokenType::Quote)
+    Ok(TokenType::QuotationMark)
 }
 
 fn paren(c: char, it: &mut PeekableChar) -> Result<TokenType, Error> {
@@ -155,7 +146,7 @@ fn string(it: &mut PeekableChar) -> Result<TokenType, Error> {
     let mut string = String::new();
 
     // Consume '"'.
-    it.next();
+    advance(it);
 
     while peek(it) != '"' && !is_at_end(it) {
         string.push(advance(it));
@@ -166,7 +157,7 @@ fn string(it: &mut PeekableChar) -> Result<TokenType, Error> {
     }
 
     // Consume '"'.
-    it.next();
+    advance(it);
 
     Ok(TokenType::String(string))
 }
@@ -329,10 +320,8 @@ mod tests {
             TokenType::Paren(')'),
         ]);
         assert_lex("'a", vec![
-            TokenType::Paren('('),
-            TokenType::Quote,
+            TokenType::QuotationMark,
             TokenType::Identifier("a".to_string()),
-            TokenType::Paren(')'),
         ]);
     }
 
