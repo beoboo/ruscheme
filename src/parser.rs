@@ -376,12 +376,12 @@ impl Parser {
 
         let expr = match advance(it)?.token_type {
             TokenType::Bool(b) => Expr::Bool(b),
-            TokenType::Identifier(i) => Expr::Identifier(i),
+            TokenType::Identifier(i) => Expr::QuotedIdentifier(i),
             TokenType::Number(n) => Expr::Number(n),
             TokenType::String(s) => Expr::String(s),
             TokenType::Paren('(') => self._quote_expression(it)?,
             TokenType::EOF => return Err(UnterminatedInput),
-            t => Expr::Identifier(format!("{}", t))
+            t => Expr::QuotedIdentifier(format!("{}", t))
         };
 
         debug!("end quote: {}", expr);
@@ -397,12 +397,11 @@ impl Parser {
                 TokenType::Paren(')') => break,
                 TokenType::EOF => break,
                 TokenType::Paren('(') => {
-                    advance(it)?;
-                    Expr::Identifier(self._quote_subexpression(it)?)
+                    Expr::QuotedIdentifier(self._quote_subexpression(it)?)
                 }
                 t => {
                     advance(it)?;
-                    Expr::Identifier(t.to_string())
+                    Expr::QuotedIdentifier(t.to_string())
                 }
             };
 
@@ -416,6 +415,8 @@ impl Parser {
     }
 
     fn _quote_subexpression(&self, it: &mut PeekableToken) -> Result<String, Error> {
+        advance(it)?;
+
         let mut tokens = vec![];
         debug!("quote_subexpression");
 
@@ -423,7 +424,6 @@ impl Parser {
             match peek(it) {
                 TokenType::EOF => break,
                 TokenType::Paren(')') => {
-                    advance(it)?;
                     break;
                 }
                 TokenType::Paren('(') => {
@@ -436,6 +436,7 @@ impl Parser {
                 }
             }
         }
+        consume(TokenType::Paren(')'), it, format!("Expected ')' after quoted subexpression."))?;
 
         debug!("end quoted subexpression: {}", tokens.join(" "));
         Ok(format!("({})", tokens.join(" ")))
@@ -719,19 +720,19 @@ mod tests {
     fn parse_quotes() {
 //        env_logger::init();
         assert_parse("(quote a)",
-                     Expr::Quote(Box::new(Expr::Identifier("a".to_string()))),
+                     Expr::Quote(Box::new(Expr::QuotedIdentifier("a".to_string()))),
         );
         assert_parse("'a",
-                     Expr::Quote(Box::new(Expr::Identifier("a".to_string()))),
+                     Expr::Quote(Box::new(Expr::QuotedIdentifier("a".to_string()))),
         );
         assert_parse("(quote (a b c))",
                      Expr::Quote(Box::new(
                          Expr::Pair(
-                             Box::new(Expr::Identifier("a".to_string())),
+                             Box::new(Expr::QuotedIdentifier("a".to_string())),
                              Box::new(Expr::Pair(
-                                 Box::new(Expr::Identifier("b".to_string())),
+                                 Box::new(Expr::QuotedIdentifier("b".to_string())),
                                  Box::new(Expr::Pair(
-                                     Box::new(Expr::Identifier("c".to_string())),
+                                     Box::new(Expr::QuotedIdentifier("c".to_string())),
                                      Box::new(Expr::Empty),
                                  )),
                              )),
@@ -741,11 +742,11 @@ mod tests {
         assert_parse("(quote (lambda x y))",
                      Expr::Quote(Box::new(
                          Expr::Pair(
-                             Box::new(Expr::Identifier("lambda".to_string())),
+                             Box::new(Expr::QuotedIdentifier("lambda".to_string())),
                              Box::new(Expr::Pair(
-                                 Box::new(Expr::Identifier("x".to_string())),
+                                 Box::new(Expr::QuotedIdentifier("x".to_string())),
                                  Box::new(Expr::Pair(
-                                     Box::new(Expr::Identifier("y".to_string())),
+                                     Box::new(Expr::QuotedIdentifier("y".to_string())),
                                      Box::new(Expr::Empty),
                                  )),
                              )),
@@ -755,11 +756,11 @@ mod tests {
         assert_parse("(quote ((define x y) a ()))",
                      Expr::Quote(Box::new(
                          Expr::Pair(
-                             Box::new(Expr::Identifier("(define x y)".to_string())),
+                             Box::new(Expr::QuotedIdentifier("(define x y)".to_string())),
                              Box::new(Expr::Pair(
-                                 Box::new(Expr::Identifier("a".to_string())),
+                                 Box::new(Expr::QuotedIdentifier("a".to_string())),
                                  Box::new(Expr::Pair(
-                                     Box::new(Expr::Identifier("()".to_string())),
+                                     Box::new(Expr::QuotedIdentifier("()".to_string())),
                                      Box::new(Expr::Empty),
                                  )),
                              )),
@@ -769,9 +770,9 @@ mod tests {
         assert_parse("''a",
                      Expr::Quote(Box::new(
                          Expr::Pair(
-                             Box::new(Expr::Identifier("quote".to_string())),
+                             Box::new(Expr::QuotedIdentifier("quote".to_string())),
                              Box::new(Expr::Pair(
-                                 Box::new(Expr::Identifier("a".to_string())),
+                                 Box::new(Expr::QuotedIdentifier("a".to_string())),
                                  Box::new(Expr::Empty),
                              )),
                          )

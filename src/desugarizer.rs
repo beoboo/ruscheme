@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn desugar_quote() {
-        env_logger::init();
+//        env_logger::init();
         assert_valid("'a", vec![
             TokenType::Paren('('),
             TokenType::Quote,
@@ -118,30 +118,7 @@ mod tests {
             TokenType::Paren(')'),
             TokenType::Paren(')'),
         ]);
-//        assert_valid("'(expr)", "(quote (expr))");
-//        assert_valid("'(expr a b c)", "(quote (expr a b c))");
-//        assert_valid("'(expr) a", "(quote (expr)) a");
-//        assert_valid("'(expr (a) b c)", "(quote (expr (a) b c))");
-//        assert_valid("'((expr (a) b) c)", "(quote ((expr (a) b) c))");
-//        assert_valid("'a 'b", "(quote a)(quote b)");
-//        assert_valid("(display (eq? 'apple 'banana))", "(display (eq? (quote apple)(quote banana)))");
     }
-    //
-//    #[test]
-//    fn desugar_double_quote() {
-////        env_logger::init();
-//        assert_valid("''a", "(quote (quote a))");
-//        assert_valid("''(a)", "(quote (quote (a)))");
-//        assert_valid("''((a) b)", "(quote (quote ((a) b)))");
-//        assert_valid("'('a) b", "(quote ((quote a) b))");
-//    }
-//
-//    #[test]
-//    fn ignore_double_quotes() {
-////        env_logger::init();
-//        assert_valid("\"'a\"", "\"'a\"");
-//        assert_valid("'\"'a\"", "(quote \"'a\")");
-//    }
 
     fn assert_valid(source: &str, expected: Vec<TokenType>) {
         debug!("Parsing: {}", source);

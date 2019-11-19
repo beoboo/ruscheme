@@ -38,6 +38,7 @@ impl Evaluator {
             Expr::Or(exprs) => self.eval_or(exprs, env),
             Expr::Pair(_, _) => Ok(expr.clone()),
             Expr::Quote(expr) => self.eval_quote(expr, env),
+            Expr::QuotedIdentifier(s) => Ok(expr.clone()),
             Expr::String(_) => Ok(expr.clone()),
             e => panic!("Unmapped expression: {}", e)
         }
@@ -192,7 +193,7 @@ impl Evaluator {
         let expr = expr.as_ref();
 
         match expr {
-            Expr::Identifier(_) => Ok(expr.clone()),
+            Expr::QuotedIdentifier(_) => Ok(expr.clone()),
             Expr::Pair(_, _) => Ok(expr.clone()),
             e => _report_error(format!("Invalid quote: '{}'", e))
         }
@@ -403,16 +404,20 @@ mod tests {
 
     #[test]
     fn eval_quotes() {
-//        env_logger::init();
-        assert_output("(quote a)", "a");
-        assert_output("'a", "a");
-        assert_output("'(a b c)", "(a b c)");
-        assert_output("(car '(a b c))", "a");
-        assert_output("''(a b c)", "(quote (a b c))");
-        assert_output("(list 'apple '(pear banana prune))", "(apple (pear banana prune))");
-        assert_output("(list 'quote '(a b c))", "(quote (a b c))");
-        assert_output("((list 'quote '(a b c)))", "(a b c)");
-        assert_output("(list 'car (list 'quote '(a b c)))", "(car (quote (a b c)))");
+        env_logger::init();
+//        assert_output("(quote a)", "a");
+//        assert_output("'a", "a");
+//        assert_output("'(a b c)", "(a b c)");
+//        assert_output("(car '(a b c))", "a");
+//        assert_output("''(a b c)", "(quote (a b c))");
+//        assert_output("(list 'apple '(pear banana prune))", "(apple (pear banana prune))");
+        assert_output("'((red shoes) (blue socks))", "((red shoes) (blue socks))");
+//        assert_output("(list 'quote '(a b c))", "(quote (a b c))");
+//        assert_output("(list 'car (list 'quote '(a b c)))", "(car (quote (a b c)))");
+//        assert_output("\
+//        (define (test1 x) (test2 x))\
+//        (define (test2 x) 1)\
+//        (test1 'a)", "1");
     }
 
     #[test]
@@ -440,22 +445,22 @@ mod tests {
         assert_that!(res.unwrap(), equal_to(expected));
     }
 
-    fn assert_output(expr: &str, expected: &str) {
-        debug!("Evaluating {}", expr);
+    fn assert_output(source: &str, expected: &str) {
         let mut globals = Environment::global();
-        let res = eval(expr, &mut globals).unwrap();
+        let res = eval(source, &mut globals).unwrap();
 
         assert_that!(res.to_string(), equal_to(expected));
     }
 
-    fn assert_invalid(expr: &str, err: String) {
+    fn assert_invalid(source: &str, err: String) {
         let mut globals = Environment::global();
-        let res = eval(expr, &mut globals);
+        let res = eval(source, &mut globals);
 
         assert_that!(res.unwrap_err().to_string(), equal_to(err));
     }
 
     fn eval(source: &str, globals: &mut Environment) -> Result<Expr, Error> {
+        debug!("Evaluating {}", source);
         let lexer = Lexer::new();
         let desugarizer = Desugarizer::new();
         let parser = Parser::new();
@@ -463,6 +468,7 @@ mod tests {
 
         let tokens = lexer.lex(source)?;
         let tokens = desugarizer.desugar(tokens)?;
+        debug!("Tokens {:#?}", tokens);
         let exprs = parser.parse(tokens)?;
 
         let mut res = Err(Error::Evaluator(format!("No expressions to eval.")));

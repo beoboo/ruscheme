@@ -17,15 +17,16 @@
 ;
 ;(display (memq (car (list 1)) (list 1)))
 ;(newline)
-
-(display (memq 'apple '(pear banana prune)))
-(newline)
+;
+;(display (memq 'apple '(pear banana prune)))
+;(newline)
 
 ;(display (memq 'apple '(x (apple sauce) y apple pear)))
 ;(newline)
 ;
-;(display (memq 'red '((red shoes) (blue socks))))
-;(newline)
-;
+(display (memq 'red '((red shoes) (blue socks))))
+(newline)
+
 ;(display (memq 'red '(red shoes blue socks)))
 ;(newline)
+;
