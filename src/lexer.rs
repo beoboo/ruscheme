@@ -16,8 +16,8 @@ impl Lexer {
 
     pub fn lex(&self, source: &str) -> Result<Vec<Token>, Error> {
         let mut it = source.chars().peekable();
-        let mut tokens = Vec::new();
         let mut line = 1;
+        let mut tokens = Vec::new();
 
         loop {
             let ch = peek(&mut it);
@@ -33,7 +33,6 @@ impl Lexer {
                     comment(&mut it);
                     continue;
                 }
-                '\'' => quote(&mut it),
                 '"' => string(&mut it),
                 '\n' => {
                     line += 1;
@@ -130,13 +129,6 @@ fn number(it: &mut PeekableChar) -> Result<TokenType, Error> {
     Ok(TokenType::Number(number))
 }
 
-fn quote(it: &mut PeekableChar) -> Result<TokenType, Error> {
-    // Consume the '.
-    advance(it);
-
-    Ok(TokenType::QuotationMark)
-}
-
 fn paren(c: char, it: &mut PeekableChar) -> Result<TokenType, Error> {
     advance(it);
     Ok(TokenType::Paren(c))
@@ -220,6 +212,7 @@ mod tests {
     use hamcrest2::prelude::*;
 
     use super::*;
+    use crate::desugarizer::Desugarizer;
 
     #[test]
     fn lex_empty() {
@@ -320,8 +313,10 @@ mod tests {
             TokenType::Paren(')'),
         ]);
         assert_lex("'a", vec![
-            TokenType::QuotationMark,
+            TokenType::Paren('('),
+            TokenType::Quote,
             TokenType::Identifier("a".to_string()),
+            TokenType::Paren(')'),
         ]);
     }
 
@@ -350,7 +345,10 @@ mod tests {
     }
 
     fn lex(source: &str) -> Result<Vec<Token>, Error> {
+        let desugarizer = Desugarizer::new();
         let lexer = Lexer::new();
-        lexer.lex(source)
+
+        let source = desugarizer.desugar(source)?;
+        lexer.lex(source.as_str())
     }
 }

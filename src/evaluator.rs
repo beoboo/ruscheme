@@ -38,7 +38,6 @@ impl Evaluator {
             Expr::Or(exprs) => self.eval_or(exprs, env),
             Expr::Pair(_, _) => Ok(expr.clone()),
             Expr::Quote(expr) => self.eval_quote(expr, env),
-            Expr::QuotedIdentifier(s) => Ok(expr.clone()),
             Expr::String(_) => Ok(expr.clone()),
             e => panic!("Unmapped expression: {}", e)
         }
@@ -193,8 +192,8 @@ impl Evaluator {
         let expr = expr.as_ref();
 
         match expr {
-            Expr::QuotedIdentifier(i) => Ok(expr.clone()),
-            Expr::Expression(exprs) => Ok(build_cons(exprs)),
+            Expr::Identifier(_) => Ok(expr.clone()),
+            Expr::Pair(_, _) => Ok(expr.clone()),
             e => _report_error(format!("Invalid quote: '{}'", e))
         }
     }
@@ -243,6 +242,7 @@ mod tests {
     use crate::parser::Parser;
 
     use super::*;
+    use crate::desugarizer::Desugarizer;
 
     #[test]
     fn eval_identifiers() {
@@ -451,11 +451,13 @@ mod tests {
     }
 
     fn eval(source: &str, globals: &mut Environment) -> Result<Expr, Error> {
+        let desugarizer = Desugarizer::new();
         let lexer = Lexer::new();
         let parser = Parser::new();
         let evaluator = Evaluator::new();
 
-        let tokens = lexer.lex(source)?;
+        let source = desugarizer.desugar(source)?;
+        let tokens = lexer.lex(source.as_str())?;
         let exprs = parser.parse(tokens)?;
 
         let mut res = Err(Error::Evaluator(format!("No expressions to eval.")));

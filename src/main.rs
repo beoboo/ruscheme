@@ -8,6 +8,7 @@ use std::io::Write;
 use colored::*;
 
 use crate::compiler::*;
+use crate::desugarizer::*;
 use crate::environment::*;
 use crate::error::*;
 use crate::evaluator::*;
@@ -15,6 +16,8 @@ use crate::lexer::*;
 use crate::parser::*;
 use crate::virtual_machine::*;
 
+mod compiler;
+mod desugarizer;
 mod environment;
 mod error;
 mod evaluator;
@@ -24,7 +27,6 @@ mod parser;
 mod token;
 
 mod byte_code;
-mod compiler;
 mod virtual_machine;
 
 
@@ -90,8 +92,11 @@ fn run_file(filename: &String) {
 
 #[cfg(not(feature="compiler"))]
 fn run(source: &str, globals: &mut Environment, print_output: bool) -> Result<(), Error> {
-    let lexer: Lexer = Lexer::new();
-    let tokens = lexer.lex(source)?;
+    let desugarizer = Desugarizer::new();
+    let source = desugarizer.desugar(source)?;
+
+    let lexer = Lexer::new();
+    let tokens = lexer.lex(source.as_str())?;
 
 //    println!("{} token{}:", &tokens.len(), if tokens.len() != 1 { "s" } else { "" });
 //    for token in &tokens {
@@ -104,7 +109,7 @@ fn run(source: &str, globals: &mut Environment, print_output: bool) -> Result<()
         return Ok(());
     }
 
-    let parser: Parser = Parser::new();
+    let parser = Parser::new();
     let exprs = parser.parse(tokens)?;
 
 //

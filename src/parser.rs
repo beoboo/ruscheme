@@ -221,6 +221,45 @@ impl Parser {
         }
     }
 
+    fn _define_expression(&self, name: &str, it: &mut PeekableToken) -> Result<Expr, Error> {
+        debug!("define expression: {}", name);
+        let expr = match advance(it) {
+            Ok(TokenType::Number(n)) => Expr::Number(n),
+            Ok(TokenType::Identifier(i)) => Expr::Identifier(i),
+            Ok(TokenType::Paren('(')) => {
+                let token_type = advance(it)?;
+
+                let expr = match token_type {
+                    TokenType::Identifier(i) => self.call(i, it)?,
+                    TokenType::Lambda => {
+                        consume(TokenType::Paren('('), it, format!("Expected '(' after 'lambda'."))?;
+                        self.lambda(it)?
+                    }
+                    t => return _report_error(format!("Expected expression name (found '{}').", t))
+                };
+
+                consume(TokenType::Paren(')'), it, format!("Expected ')' after expression."))?;
+
+                expr
+            }
+            _ => return _report_error(format!("Expected expression after name."))
+        };
+
+        Ok(Expr::Define(name.to_string(), Box::new(expr)))
+    }
+
+    fn _define_lambda(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
+        let name = match advance(it) {
+            Ok(TokenType::Identifier(i)) => Expr::Identifier(i),
+            Ok(TokenType::EOF) => return Err(UnterminatedInput),
+            _ => return _report_error(format!("Expected lambda name."))
+        };
+
+        let lambda = self.lambda(it)?;
+
+        Ok(Expr::Define(name.to_string(), Box::new(lambda)))
+    }
+
     fn if_then(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
         debug!("if_then");
 
@@ -337,7 +376,7 @@ impl Parser {
 
         let expr = match advance(it)? {
             TokenType::Bool(b) => Expr::Bool(b),
-            TokenType::Identifier(i) => Expr::QuotedIdentifier(i),
+            TokenType::Identifier(i) => Expr::Identifier(i),
             TokenType::Number(n) => Expr::Number(n),
             TokenType::String(s) => Expr::String(s),
             TokenType::Paren('(') => self._quote_expression(it)?,
@@ -359,11 +398,11 @@ impl Parser {
                 TokenType::EOF => break,
                 TokenType::Paren('(') => {
                     advance(it)?;
-                    Expr::QuotedIdentifier(self._quote_subexpression(it)?)
-                },
+                    Expr::Identifier(self._quote_subexpression(it)?)
+                }
                 t => {
                     advance(it)?;
-                    Expr::QuotedIdentifier(t.to_string())
+                    Expr::Identifier(t.to_string())
                 }
             };
 
@@ -373,7 +412,7 @@ impl Parser {
         consume(TokenType::Paren(')'), it, format!("Expected ')' after quoted expression."))?;
 
         debug!("end quoted expression: {:?}", exprs);
-        Ok(Expr::Expression(exprs))
+        Ok(build_cons(&exprs))
     }
 
     fn _quote_subexpression(&self, it: &mut PeekableToken) -> Result<String, Error> {
@@ -386,11 +425,11 @@ impl Parser {
                 TokenType::Paren(')') => {
                     advance(it)?;
                     break;
-                },
+                }
                 TokenType::Paren('(') => {
                     advance(it)?;
                     tokens.push(self._quote_subexpression(it)?)
-                },
+                }
                 t => {
                     advance(it)?;
                     tokens.push(t.to_string())
@@ -400,45 +439,6 @@ impl Parser {
 
         debug!("end quoted subexpression: {}", tokens.join(" "));
         Ok(format!("({})", tokens.join(" ")))
-    }
-
-    fn _define_expression(&self, name: &str, it: &mut PeekableToken) -> Result<Expr, Error> {
-        debug!("define expression: {}", name);
-        let expr = match advance(it) {
-            Ok(TokenType::Number(n)) => Expr::Number(n),
-            Ok(TokenType::Identifier(i)) => Expr::Identifier(i),
-            Ok(TokenType::Paren('(')) => {
-                let token_type = advance(it)?;
-
-                let expr = match token_type {
-                    TokenType::Identifier(i) => self.call(i, it)?,
-                    TokenType::Lambda => {
-                        consume(TokenType::Paren('('), it, format!("Expected '(' after 'lambda'."))?;
-                        self.lambda(it)?
-                    }
-                    t => return _report_error(format!("Expected expression name (found '{}').", t))
-                };
-
-                consume(TokenType::Paren(')'), it, format!("Expected ')' after expression."))?;
-
-                expr
-            }
-            _ => return _report_error(format!("Expected expression after name."))
-        };
-
-        Ok(Expr::Define(name.to_string(), Box::new(expr)))
-    }
-
-    fn _define_lambda(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
-        let name = match advance(it) {
-            Ok(TokenType::Identifier(i)) => Expr::Identifier(i),
-            Ok(TokenType::EOF) => return Err(UnterminatedInput),
-            _ => return _report_error(format!("Expected lambda name."))
-        };
-
-        let lambda = self.lambda(it)?;
-
-        Ok(Expr::Define(name.to_string(), Box::new(lambda)))
     }
 }
 
@@ -451,6 +451,7 @@ fn _report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
 mod tests {
     use hamcrest2::prelude::*;
 
+    use crate::desugarizer::Desugarizer;
     use crate::lexer::Lexer;
 
     use super::*;
@@ -723,50 +724,59 @@ mod tests {
         assert_parse("'a",
                      Expr::Quote(Box::new(Expr::Identifier("a".to_string()))),
         );
-//        assert_parse("(quote (a b c))",
-//                     Expr::Quote(Box::new(
-//                         Expr::Expression(vec![
-//                             Expr::QuotedIdentifier("a".to_string()),
-//                             Expr::QuotedIdentifier("b".to_string()),
-//                             Expr::QuotedIdentifier("c".to_string()),
-//                         ])
-//                     )),
-//        );
-//        assert_parse("(quote (lambda x y))",
-//                     Expr::Quote(Box::new(
-//                         Expr::Expression(vec![
-//                             Expr::QuotedIdentifier("lambda".to_string()),
-//                             Expr::QuotedIdentifier("x".to_string()),
-//                             Expr::QuotedIdentifier("y".to_string()),
-//                         ])
-//                     )),
-//        );
-//        assert_parse("(quote ((define x y) a ()))",
-//                     Expr::Quote(Box::new(
-//                         Expr::Expression(vec![
-//                             Expr::QuotedIdentifier("(define x y)".to_string()),
-//                             Expr::QuotedIdentifier("a".to_string()),
-//                             Expr::QuotedIdentifier("()".to_string()),
-//                         ])
-//                     )),
-//        );
-//        assert_parse("''a",
-//                     Expr::Quote(Box::new(
-//                         Expr::Expression(vec![
-//                             Expr::QuotedIdentifier("quote".to_string()),
-//                             Expr::QuotedIdentifier("a".to_string()),
-//                         ])
-//                     )),
-//        );
-    }
-
-    fn parse(source: &str) -> Result<Vec<Expr>, Error> {
-        debug!("Parsing: '{}'", source);
-        let lexer = Lexer::new();
-        let tokens = lexer.lex(source)?;
-
-        let parser = Parser::new();
-        parser.parse(tokens)
+        assert_parse("(quote (a b c))",
+                     Expr::Quote(Box::new(
+                         Expr::Pair(
+                             Box::new(Expr::Identifier("a".to_string())),
+                             Box::new(Expr::Pair(
+                                 Box::new(Expr::Identifier("b".to_string())),
+                                 Box::new(Expr::Pair(
+                                     Box::new(Expr::Identifier("c".to_string())),
+                                     Box::new(Expr::Empty),
+                                 )),
+                             )),
+                         )
+                     )),
+        );
+        assert_parse("(quote (lambda x y))",
+                     Expr::Quote(Box::new(
+                         Expr::Pair(
+                             Box::new(Expr::Identifier("lambda".to_string())),
+                             Box::new(Expr::Pair(
+                                 Box::new(Expr::Identifier("x".to_string())),
+                                 Box::new(Expr::Pair(
+                                     Box::new(Expr::Identifier("y".to_string())),
+                                     Box::new(Expr::Empty),
+                                 )),
+                             )),
+                         )
+                     )),
+        );
+        assert_parse("(quote ((define x y) a ()))",
+                     Expr::Quote(Box::new(
+                         Expr::Pair(
+                             Box::new(Expr::Identifier("(define x y)".to_string())),
+                             Box::new(Expr::Pair(
+                                 Box::new(Expr::Identifier("a".to_string())),
+                                 Box::new(Expr::Pair(
+                                     Box::new(Expr::Identifier("()".to_string())),
+                                     Box::new(Expr::Empty),
+                                 )),
+                             )),
+                         )
+                     )),
+        );
+        assert_parse("''a",
+                     Expr::Quote(Box::new(
+                         Expr::Pair(
+                             Box::new(Expr::Identifier("quote".to_string())),
+                             Box::new(Expr::Pair(
+                                 Box::new(Expr::Identifier("a".to_string())),
+                                 Box::new(Expr::Empty),
+                             )),
+                         )
+                     )),
+        );
     }
 
     fn assert_parse(source: &str, expr: Expr) {
@@ -785,5 +795,17 @@ mod tests {
         let error = parse(source).unwrap_err();
 
         assert_that!(error.to_string(), equal_to(message));
+    }
+
+    fn parse(source: &str) -> Result<Vec<Expr>, Error> {
+        debug!("Parsing: '{}'", source);
+        let desugarizer = Desugarizer::new();
+        let lexer = Lexer::new();
+        let parser = Parser::new();
+
+        let source = desugarizer.desugar(source)?;
+        let tokens = lexer.lex(source.as_str())?;
+
+        parser.parse(tokens)
     }
 }
