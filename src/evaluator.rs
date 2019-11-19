@@ -389,7 +389,7 @@ mod tests {
     }
 
     #[test]
-    fn eval_output() {
+    fn eval_outputs() {
 //        env_logger::init();
         assert_output("(list)", "()");
         assert_output("(list 1)", "(1)");
@@ -402,12 +402,17 @@ mod tests {
     }
 
     #[test]
-    fn eval_quote() {
-        env_logger::init();
+    fn eval_quotes() {
+//        env_logger::init();
         assert_output("(quote a)", "a");
         assert_output("'a", "a");
         assert_output("'(a b c)", "(a b c)");
         assert_output("(car '(a b c))", "a");
+        assert_output("''(a b c)", "(quote (a b c))");
+        assert_output("(list 'apple '(pear banana prune))", "(apple (pear banana prune))");
+        assert_output("(list 'quote '(a b c))", "(quote (a b c))");
+        assert_output("((list 'quote '(a b c)))", "(a b c)");
+        assert_output("(list 'car (list 'quote '(a b c)))", "(car (quote (a b c)))");
     }
 
     #[test]
@@ -451,13 +456,13 @@ mod tests {
     }
 
     fn eval(source: &str, globals: &mut Environment) -> Result<Expr, Error> {
-        let desugarizer = Desugarizer::new();
         let lexer = Lexer::new();
+        let desugarizer = Desugarizer::new();
         let parser = Parser::new();
         let evaluator = Evaluator::new();
 
-        let source = desugarizer.desugar(source)?;
-        let tokens = lexer.lex(source.as_str())?;
+        let tokens = lexer.lex(source)?;
+        let tokens = desugarizer.desugar(tokens)?;
         let exprs = parser.parse(tokens)?;
 
         let mut res = Err(Error::Evaluator(format!("No expressions to eval.")));

@@ -92,17 +92,16 @@ fn run_file(filename: &String) {
 
 #[cfg(not(feature="compiler"))]
 fn run(source: &str, globals: &mut Environment, print_output: bool) -> Result<(), Error> {
-    let desugarizer = Desugarizer::new();
-    let source = desugarizer.desugar(source)?;
-
     let lexer = Lexer::new();
-    let tokens = lexer.lex(source.as_str())?;
+    let tokens = lexer.lex(source)?;
 
 //    println!("{} token{}:", &tokens.len(), if tokens.len() != 1 { "s" } else { "" });
 //    for token in &tokens {
 //        println!("- {:?}", token);
 //    }
 //    println!();
+    let desugarizer = Desugarizer::new();
+    let tokens = desugarizer.desugar(tokens)?;
 
     // Handle EOF.
     if tokens.len() == 1 {

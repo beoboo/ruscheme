@@ -43,7 +43,7 @@ impl Parser {
     }
 
     fn primitive(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
-        let token_type = advance(it)?;
+        let token_type = advance(it)?.token_type;
 
         debug!("primitive '{}'", &token_type);
 
@@ -78,7 +78,7 @@ impl Parser {
     }
 
     fn expression(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
-        let token_type = advance(it)?;
+        let token_type = advance(it)?.token_type;
 
         debug!("expression: '{}'", token_type);
         let t2 = token_type.clone();
@@ -213,21 +213,21 @@ impl Parser {
 
     fn define(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
         debug!("definition");
-        match advance(it) {
-            Ok(TokenType::Identifier(i)) => self._define_expression(&i, it),
-            Ok(TokenType::Paren('(')) => self._define_lambda(it),
-            Ok(TokenType::EOF) => return Err(UnterminatedInput),
+        match advance(it)?.token_type {
+            TokenType::Identifier(i) => self._define_expression(&i, it),
+            TokenType::Paren('(') => self._define_lambda(it),
+            TokenType::EOF => return Err(UnterminatedInput),
             t => return _report_error(format!("Expected name or '(' after define (found: {:?}).", t))
         }
     }
 
     fn _define_expression(&self, name: &str, it: &mut PeekableToken) -> Result<Expr, Error> {
         debug!("define expression: {}", name);
-        let expr = match advance(it) {
-            Ok(TokenType::Number(n)) => Expr::Number(n),
-            Ok(TokenType::Identifier(i)) => Expr::Identifier(i),
-            Ok(TokenType::Paren('(')) => {
-                let token_type = advance(it)?;
+        let expr = match advance(it)?.token_type {
+            TokenType::Number(n) => Expr::Number(n),
+            TokenType::Identifier(i) => Expr::Identifier(i),
+            TokenType::Paren('(') => {
+                let token_type = advance(it)?.token_type;
 
                 let expr = match token_type {
                     TokenType::Identifier(i) => self.call(i, it)?,
@@ -249,9 +249,9 @@ impl Parser {
     }
 
     fn _define_lambda(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
-        let name = match advance(it) {
-            Ok(TokenType::Identifier(i)) => Expr::Identifier(i),
-            Ok(TokenType::EOF) => return Err(UnterminatedInput),
+        let name = match advance(it)?.token_type {
+            TokenType::Identifier(i) => Expr::Identifier(i),
+            TokenType::EOF => return Err(UnterminatedInput),
             _ => return _report_error(format!("Expected lambda name."))
         };
 
@@ -374,14 +374,14 @@ impl Parser {
     fn quote(&self, it: &mut PeekableToken) -> Result<Expr, Error> {
         debug!("quote");
 
-        let expr = match advance(it)? {
+        let expr = match advance(it)?.token_type {
             TokenType::Bool(b) => Expr::Bool(b),
             TokenType::Identifier(i) => Expr::Identifier(i),
             TokenType::Number(n) => Expr::Number(n),
             TokenType::String(s) => Expr::String(s),
             TokenType::Paren('(') => self._quote_expression(it)?,
             TokenType::EOF => return Err(UnterminatedInput),
-            t => return _report_error(format!("Undefined token type: '{}'.", t))
+            t => Expr::Identifier(format!("{}", t))
         };
 
         debug!("end quote: {}", expr);
@@ -451,10 +451,10 @@ fn _report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
 mod tests {
     use hamcrest2::prelude::*;
 
-    use crate::desugarizer::Desugarizer;
     use crate::lexer::Lexer;
 
     use super::*;
+    use crate::desugarizer::Desugarizer;
 
     #[test]
     fn parse_empty() {
@@ -799,12 +799,12 @@ mod tests {
 
     fn parse(source: &str) -> Result<Vec<Expr>, Error> {
         debug!("Parsing: '{}'", source);
-        let desugarizer = Desugarizer::new();
         let lexer = Lexer::new();
+        let desugarizer = Desugarizer::new();
         let parser = Parser::new();
 
-        let source = desugarizer.desugar(source)?;
-        let tokens = lexer.lex(source.as_str())?;
+        let tokens = lexer.lex(source)?;
+        let tokens = desugarizer.desugar(tokens)?;
 
         parser.parse(tokens)
     }

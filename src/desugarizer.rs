@@ -9,76 +9,65 @@ use crate::token::*;
 #[derive(Debug)]
 pub struct Desugarizer {}
 
-type PeekableChar<'a> = Peekable<Chars<'a>>;
-
 impl Desugarizer {
     pub fn new() -> Desugarizer {
         Desugarizer {}
     }
 
-    pub fn desugar(&self, source: &str) -> Result<String, Error> {
-        let mut it = source.chars().peekable();
-        let mut res = String::new();
-        let mut quoting = false;
+    pub fn desugar(&self, tokens: Vec<Token>) -> Result<Vec<Token>, Error> {
+        let mut it = tokens.iter().peekable();
+        let mut desugared = vec![];
 
-        while let Some(ch) = it.next() {
-            match ch {
-                '"' => {
-                    quoting = !quoting;
-                    res.push(ch);
-                }
-                '\'' => {
-                    if quoting {
-                        res.push(ch)
-                    } else {
-                        self.quote(&mut res, &mut it);
-                    }
-                }
-                _ => res.push(ch)
-            }
-        };
+        loop {
+            let token = advance(&mut it)?;
 
-        Ok(res)
+            match token.token_type {
+                TokenType::QuotationMark => self.quote(&mut desugared, &mut it, token.line)?,
+                TokenType::EOF => {
+                    desugared.push(token.clone());
+                    break;
+                }
+                _ => desugared.push(token.clone())
+            };
+        }
+
+        Ok(desugared)
     }
 
-    fn quote(&self, res: &mut String, it: &mut PeekableChar) -> Result<(), Error> {
-        res.push_str("(quote ");
+    fn quote(&self, desugared: &mut Vec<Token>, it: &mut PeekableToken, line: u32) -> Result<(), Error> {
+        desugared.push(Token::new(TokenType::Paren('('), line));
+        desugared.push(Token::new(TokenType::Quote, line));
 
-        let mut indent = 0;
-        let mut quoting = false;
+        let token = advance(it)?;
 
-        while let Some(ch) = it.next() {
-            match ch {
-                '"' => {
-                    quoting = !quoting;
-                    res.push(ch);
-                }
-                '\'' => {
-                    if quoting {
-                        res.push(ch)
-                    } else {
-                        self.quote(res, it);
-                    }
-                }
-                '(' => {
-                    debug!("(");
-                    indent += 1;
-                    res.push('(');
-                }
-                ')' => {
-                    debug!(") {}", indent);
-                    indent -= 1;
-                    res.push(')');
-
-                    if indent == 0 {
-                        break;
-                    }
-                }
-                _ => res.push(ch)
+        match token.token_type {
+            TokenType::QuotationMark => self.quote(desugared, it, token.line)?,
+            TokenType::Paren('(') => {
+                desugared.push(token.clone());
+                self.expression(desugared, it, token.line)?
             }
+            _ => desugared.push(token.clone())
         };
 
-        res.push(')');
+        desugared.push(Token::new(TokenType::Paren(')'), line));
+
+        Ok(())
+    }
+
+    fn expression(&self, desugared: &mut Vec<Token>, it: &mut PeekableToken, line: u32) -> Result<(), Error> {
+        loop {
+            let token = advance(it)?;
+
+            match token.token_type {
+                TokenType::Paren('(') => self.expression(desugared, it, token.line)?,
+                TokenType::Paren(')') => {
+                    desugared.push(token.clone());
+                    break;
+                }
+                TokenType::EOF => break,
+                _ => desugared.push(token.clone())
+            }
+        }
 
         Ok(())
     }
@@ -92,50 +81,93 @@ fn _report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
 mod tests {
     use hamcrest2::prelude::*;
 
+    use crate::lexer::Lexer;
+
     use super::*;
 
     #[test]
     fn desugar_empty() {
         let source = desugar("").unwrap();
 
-        assert_that!(source, equal_to(""));
+        assert_that!(source.len(), equal_to(1));
     }
 
     #[test]
     fn desugar_quote() {
-        assert_valid("'a", "(quote a)");
-        assert_valid("'(expr)", "(quote (expr))");
-        assert_valid("'(expr a b c)", "(quote (expr a b c))");
-        assert_valid("'(expr) a", "(quote (expr)) a");
-        assert_valid("'(expr (a) b c)", "(quote (expr (a) b c))");
-        assert_valid("'((expr (a) b) c)", "(quote ((expr (a) b) c))");
+        env_logger::init();
+        assert_valid("'a", vec![
+            TokenType::Paren('('),
+            TokenType::Quote,
+            TokenType::Identifier("a".to_string()),
+            TokenType::Paren(')'),
+        ]);
+        assert_valid("''a", vec![
+            TokenType::Paren('('),
+            TokenType::Quote,
+            TokenType::Paren('('),
+            TokenType::Quote,
+            TokenType::Identifier("a".to_string()),
+            TokenType::Paren(')'),
+            TokenType::Paren(')'),
+        ]);
+        assert_valid("'(a)", vec![
+            TokenType::Paren('('),
+            TokenType::Quote,
+            TokenType::Paren('('),
+            TokenType::Identifier("a".to_string()),
+            TokenType::Paren(')'),
+            TokenType::Paren(')'),
+        ]);
+//        assert_valid("'(expr)", "(quote (expr))");
+//        assert_valid("'(expr a b c)", "(quote (expr a b c))");
+//        assert_valid("'(expr) a", "(quote (expr)) a");
+//        assert_valid("'(expr (a) b c)", "(quote (expr (a) b c))");
+//        assert_valid("'((expr (a) b) c)", "(quote ((expr (a) b) c))");
+//        assert_valid("'a 'b", "(quote a)(quote b)");
+//        assert_valid("(display (eq? 'apple 'banana))", "(display (eq? (quote apple)(quote banana)))");
     }
+    //
+//    #[test]
+//    fn desugar_double_quote() {
+////        env_logger::init();
+//        assert_valid("''a", "(quote (quote a))");
+//        assert_valid("''(a)", "(quote (quote (a)))");
+//        assert_valid("''((a) b)", "(quote (quote ((a) b)))");
+//        assert_valid("'('a) b", "(quote ((quote a) b))");
+//    }
+//
+//    #[test]
+//    fn ignore_double_quotes() {
+////        env_logger::init();
+//        assert_valid("\"'a\"", "\"'a\"");
+//        assert_valid("'\"'a\"", "(quote \"'a\")");
+//    }
 
-    #[test]
-    fn desugar_double_quote() {
-//        env_logger::init();
-        assert_valid("''a", "(quote (quote a))");
-        assert_valid("''(a)", "(quote (quote (a)))");
-        assert_valid("''((a) b)", "(quote (quote ((a) b)))");
-        assert_valid("'('a) b", "(quote ((quote a) b))");
-    }
-
-    #[test]
-    fn ignore_double_quotes() {
-//        env_logger::init();
-        assert_valid("\"'a\"", "\"'a\"");
-        assert_valid("'\"'a\"", "(quote \"'a\")");
-    }
-
-    fn assert_valid(source: &str, expected: &str) {
+    fn assert_valid(source: &str, expected: Vec<TokenType>) {
         debug!("Parsing: {}", source);
-        let source = desugar(source).unwrap();
+        let tokens = desugar(source).unwrap();
 
-        assert_that!(source, equal_to(expected));
+        let expected_length = expected.len() +
+            if expected[expected.len() - 1] != TokenType::EOF { 1 } else { 0 };
+
+        for t in tokens.iter() {
+            debug!("{:?}", t);
+        }
+        assert_that!(tokens.len(), equal_to(expected_length));
+
+        for (i, token) in tokens.iter().enumerate() {
+            if token.token_type == TokenType::EOF {
+                break;
+            }
+            assert_that!(&token.token_type, equal_to(&expected[i]));
+        }
     }
 
-    fn desugar(source: &str) -> Result<String, Error> {
+    fn desugar(source: &str) -> Result<Vec<Token>, Error> {
+        let lexer = Lexer::new();
         let desugarer = Desugarizer::new();
-        desugarer.desugar(source)
+        let tokens = lexer.lex(source)?;
+
+        desugarer.desugar(tokens)
     }
 }

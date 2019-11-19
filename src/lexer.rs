@@ -29,6 +29,7 @@ impl Lexer {
                     advance(&mut it);
                     continue;
                 }
+                '\'' => quote(&mut it),
                 ';' => {
                     comment(&mut it);
                     continue;
@@ -134,6 +135,11 @@ fn paren(c: char, it: &mut PeekableChar) -> Result<TokenType, Error> {
     Ok(TokenType::Paren(c))
 }
 
+fn quote(it: &mut PeekableChar) -> Result<TokenType, Error> {
+    advance(it);
+    Ok(TokenType::QuotationMark)
+}
+
 fn string(it: &mut PeekableChar) -> Result<TokenType, Error> {
     let mut string = String::new();
 
@@ -212,7 +218,6 @@ mod tests {
     use hamcrest2::prelude::*;
 
     use super::*;
-    use crate::desugarizer::Desugarizer;
 
     #[test]
     fn lex_empty() {
@@ -313,10 +318,8 @@ mod tests {
             TokenType::Paren(')'),
         ]);
         assert_lex("'a", vec![
-            TokenType::Paren('('),
-            TokenType::Quote,
+            TokenType::QuotationMark,
             TokenType::Identifier("a".to_string()),
-            TokenType::Paren(')'),
         ]);
     }
 
@@ -331,24 +334,25 @@ mod tests {
         assert_that!(error.to_string(), equal_to(message));
     }
 
-    fn assert_lex(source: &str, expected_tokens: Vec<TokenType>) {
+    fn assert_lex(source: &str, expected: Vec<TokenType>) {
         let tokens = lex(source).unwrap();
 
-        assert_that!(tokens.len() - 1, equal_to(expected_tokens.len()));
+        let expected_length = expected.len() +
+            if expected[expected.len() - 1] != TokenType::EOF { 1 } else { 0 };
+
+        assert_that!(tokens.len(), equal_to(expected_length));
 
         for (i, token) in tokens.iter().enumerate() {
             if token.token_type == TokenType::EOF {
                 break;
             }
-            assert_that!(&token.token_type, equal_to(&expected_tokens[i]));
+            assert_that!(&token.token_type, equal_to(&expected[i]));
         }
     }
 
     fn lex(source: &str) -> Result<Vec<Token>, Error> {
-        let desugarizer = Desugarizer::new();
         let lexer = Lexer::new();
 
-        let source = desugarizer.desugar(source)?;
-        lexer.lex(source.as_str())
+        lexer.lex(source)
     }
 }

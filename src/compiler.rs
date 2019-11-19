@@ -50,7 +50,7 @@ impl Compiler {
     }
 
     fn primitive(&self, instructions: &mut Instructions, it: &mut PeekableToken) -> Result<(), Error> {
-        match advance(it)? {
+        match advance(it)?.token_type {
             TokenType::Number(n) => self.constant(instructions, ByteCode::Constant(n)),
             TokenType::Paren('(') => self.expression(instructions),
             t => Err(Error::Compiler(format!("Undefined token type: '{}'", t)))

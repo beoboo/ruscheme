@@ -21,6 +21,7 @@ pub enum TokenType {
     Number(f64),
     Or,
     Paren(char),
+    QuotationMark,
     Quote,
     String(String),
     EOF,
@@ -56,6 +57,7 @@ impl fmt::Display for TokenType {
             TokenType::Not => write!(f, "not"),
             TokenType::Number(n) => write!(f, "{}", n),
             TokenType::Or => write!(f, "or"),
+            TokenType::QuotationMark => write!(f, "'"),
             TokenType::Quote => write!(f, "quote"),
             TokenType::Paren(p) => write!(f, "{}", p),
             TokenType::String(s) => write!(f, "{}", s),
@@ -67,10 +69,10 @@ impl fmt::Display for TokenType {
 type IterToken<'a> = Iter<'a, Token>;
 pub(crate) type PeekableToken<'a> = Peekable<IterToken<'a>>;
 
-pub fn advance(it: &mut PeekableToken) -> Result<TokenType, Error> {
+pub fn advance(it: &mut PeekableToken) -> Result<Token, Error> {
     match it.next() {
         Some(token) => {
-            Ok(token.token_type.clone())
+            Ok(token.clone())
         }
         None => Err(Error::Parser(format!("Token not found.")))
     }
@@ -87,6 +89,7 @@ pub fn consume<S: Into<String>>(token_type: TokenType, it: &mut PeekableToken, m
     }
 
     if t == TokenType::EOF {
+        debug!("{}", message.into());
         return Err(Error::UnterminatedInput);
     }
 
