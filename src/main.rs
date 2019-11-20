@@ -17,6 +17,7 @@ use crate::parser::*;
 //use crate::printer::*;
 //use crate::virtual_machine::*;
 
+mod byte_code;
 mod compiler;
 mod desugarizer;
 mod environment;
@@ -27,8 +28,6 @@ mod lexer;
 mod parser;
 mod printer;
 mod token;
-
-mod byte_code;
 mod virtual_machine;
 
 
