@@ -3,9 +3,9 @@
 
 (define (expt-iter b counter product)
   (if (= counter 0)
-      product
-      (expt-iter b
-                (- counter 1)
-                (* b product))))
+    product
+    (expt-iter b
+      (- counter 1)
+      (* b product))))
 
 (expt 2 1000)

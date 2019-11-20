@@ -92,7 +92,7 @@ fn run_file(filename: &String) {
     };
 }
 
-#[cfg(not(feature="compiler"))]
+#[cfg(not(feature = "compiler"))]
 fn run(source: &str, globals: &mut Environment, print_output: bool) -> Result<(), Error> {
     let lexer = Lexer::new();
     let tokens = lexer.lex(source)?;
@@ -136,7 +136,7 @@ fn run(source: &str, globals: &mut Environment, print_output: bool) -> Result<()
     Ok(())
 }
 
-#[cfg(feature="compiler")]
+#[cfg(feature = "compiler")]
 fn run(source: &str, globals: &mut Environment, print_output: bool) -> Result<(), Error> {
     let lexer: Lexer = Lexer::new();
     let tokens = lexer.lex(source)?;

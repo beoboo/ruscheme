@@ -2,7 +2,7 @@ use log::debug;
 
 use crate::environment::Environment;
 use crate::error::{Error, report_stage_error};
-use crate::expr::{Callable, Expr, build_cons};
+use crate::expr::{build_cons, Callable, Expr};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Evaluator {}
@@ -45,7 +45,7 @@ impl Evaluator {
     }
 
     fn eval_expression(&self, args: &Vec<Expr>, env: &mut Environment) -> Result<Expr, Error> {
-        debug!("eval_expression (env: {})", env.index);
+//        debug!("eval_expression (env: {})", env.index);
         let expr = &args[0];
 
         let res = match self.eval(expr, env) {
@@ -60,7 +60,7 @@ impl Evaluator {
             _ => _report_error(format!("Cannot execute: '{}'.", expr))
         };
 
-        debug!("end expression");
+//        debug!("end expression");
 
         res
     }
@@ -127,7 +127,7 @@ impl Evaluator {
     }
 
     fn eval_lambda(&self, args: &[Expr], params: Vec<Expr>, body: Vec<Expr>, env: &mut Environment) -> Result<Expr, Error> {
-        debug!("eval_lambda");
+//        debug!("eval_lambda");
         if params.len() != args.len() {
             return _report_error(
                 format!("Wrong number of arguments (required: {}, given: {}).",
@@ -148,14 +148,14 @@ impl Evaluator {
             enclosing.define(&param.to_string(), self.eval(&arg, &mut parent)?);
         }
 
-        debug!("Environment {:?}", enclosing);
+//        debug!("Environment {:?}", enclosing);
 
         let mut res = Expr::Empty;
 
         for expr in body {
             res = self.eval(&expr, &mut enclosing)?;
         }
-        debug!("Res {:?}", res);
+//        debug!("Res {:?}", res);
         Ok(res)
     }
 
@@ -200,7 +200,7 @@ impl Evaluator {
     }
 
     fn eval_function(&self, f: fn(Vec<Expr>) -> Result<Expr, String>, args: &[Expr], env: &mut Environment) -> Result<Expr, Error> {
-        debug!("eval function");
+//        debug!("eval function");
         let mut evaluated_args = Vec::new();
         for arg in args {
             evaluated_args.push(self.eval(&arg, env)?);
@@ -213,7 +213,7 @@ impl Evaluator {
     }
 
     fn eval_callable(&self, callable: Callable, args: &[Expr], env: &mut Environment) -> Result<Expr, Error> {
-        debug!("eval callable");
+//        debug!("eval callable");
         let mut evaluated_args = Vec::new();
         for arg in args {
             evaluated_args.push(self.eval(&arg, env)?);
@@ -239,11 +239,11 @@ fn _to_bool(expr: Expr) -> bool {
 mod tests {
     use hamcrest2::prelude::*;
 
+    use crate::desugarizer::Desugarizer;
     use crate::lexer::Lexer;
     use crate::parser::Parser;
 
     use super::*;
-    use crate::desugarizer::Desugarizer;
 
     #[test]
     fn eval_identifiers() {
@@ -414,6 +414,10 @@ mod tests {
         assert_output("'((red shoes) (blue socks))", "((red shoes) (blue socks))");
         assert_output("(list 'quote '(a b c))", "(quote (a b c))");
         assert_output("(list 'car (list 'quote '(a b c)))", "(car (quote (a b c)))");
+        assert_output("\
+        (define (test1 x) (test2 x))\
+        (define (test2 x) 1)\
+        (test1 'a)", "1");
         assert_output("\
         (define (test1 x) (test2 x))\
         (define (test2 x) 1)\

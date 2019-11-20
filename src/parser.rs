@@ -397,7 +397,8 @@ impl Parser {
                 TokenType::Paren(')') => break,
                 TokenType::EOF => break,
                 TokenType::Paren('(') => {
-                    Expr::QuotedIdentifier(self._quote_subexpression(it)?)
+                    advance(it)?;
+                    self._quote_expression(it)?
                 }
                 t => {
                     advance(it)?;
@@ -452,10 +453,10 @@ fn _report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
 mod tests {
     use hamcrest2::prelude::*;
 
+    use crate::desugarizer::Desugarizer;
     use crate::lexer::Lexer;
 
     use super::*;
-    use crate::desugarizer::Desugarizer;
 
     #[test]
     fn parse_empty() {
@@ -756,11 +757,20 @@ mod tests {
         assert_parse("(quote ((define x y) a ()))",
                      Expr::Quote(Box::new(
                          Expr::Pair(
-                             Box::new(Expr::QuotedIdentifier("(define x y)".to_string())),
+                             Box::new(Expr::Pair(
+                                 Box::new(Expr::QuotedIdentifier("define".to_string())),
+                                 Box::new(Expr::Pair(
+                                     Box::new(Expr::QuotedIdentifier("x".to_string())),
+                                     Box::new(Expr::Pair(
+                                         Box::new(Expr::QuotedIdentifier("y".to_string())),
+                                         Box::new(Expr::Empty),
+                                     )),
+                                 )),
+                             )),
                              Box::new(Expr::Pair(
                                  Box::new(Expr::QuotedIdentifier("a".to_string())),
                                  Box::new(Expr::Pair(
-                                     Box::new(Expr::QuotedIdentifier("()".to_string())),
+                                     Box::new(Expr::Empty),
                                      Box::new(Expr::Empty),
                                  )),
                              )),

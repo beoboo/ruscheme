@@ -1,7 +1,7 @@
 (define (equal? x y)
-    (if (and (pair? x) (pair? y))
-        (and (equal? (car x) (car y)) (equal? (cdr x) (cdr y)))
-        (eq? x y)))
+  (if (and (pair? x) (pair? y))
+    (and (equal? (car x) (car y)) (equal? (cdr x) (cdr y)))
+    (eq? x y)))
 
 (display (equal? 1 2))
 (newline)

@@ -1,7 +1,7 @@
 (define (gcd a b)
   (if (= b 0)
-      a
-      (gcd b (remainder a b))))
+    a
+    (gcd b (remainder a b))))
 
 (define (make-rat n d)
   (let ((g (gcd n d)))
@@ -18,8 +18,8 @@
 
 (define (add-rat x y)
   (make-rat (+ (* (numer x) (denom y))
-               (* (numer y) (denom x)))
-            (* (denom x) (denom y))))
+              (* (numer y) (denom x)))
+    (* (denom x) (denom y))))
 
 (define one-third (make-rat 1 3))
 

@@ -65,7 +65,7 @@ impl Desugarizer {
                 TokenType::QuotationMark => self.quote(desugared, it, token.line)?,
                 TokenType::Paren('(') => {
                     self.expression(token, desugared, it)?
-                },
+                }
                 TokenType::Paren(')') => {
                     desugared.push(token.clone());
                     break;

@@ -3,10 +3,10 @@ use std::slice::Iter;
 
 use log::debug;
 
+use crate::byte_code::*;
 use crate::error::{Error, report_stage_error};
 use crate::error::Error::UnterminatedInput;
 use crate::token::*;
-use crate::byte_code::*;
 
 #[derive(Debug)]
 pub struct Compiler {}
@@ -83,10 +83,10 @@ fn report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
 mod tests {
     use hamcrest2::prelude::*;
 
+    use crate::byte_code::ByteCode;
     use crate::lexer::Lexer;
 
     use super::*;
-    use crate::byte_code::ByteCode;
 
     #[test]
     fn compile_empty() {

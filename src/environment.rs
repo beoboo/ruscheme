@@ -6,7 +6,7 @@ use std::time::SystemTime;
 
 use log::debug;
 
-use crate::expr::{BoxedAction, Callable, Expr, build_pair, build_cons};
+use crate::expr::{BoxedAction, build_cons, build_pair, Callable, Expr};
 
 macro_rules! compare_floats {
     ($check_fn:expr) => {{
@@ -182,7 +182,7 @@ fn append() -> fn(Vec<Expr>) -> Result<Expr, String> {
                 Expr::Pair(head, tail) => {
                     Ok(build_pair(head.as_ref().clone(), append_iter(tail.as_ref(), second)?))
                 }
-                _ => return Err(format!("Argument is not a list."))
+                e => return Err(format!("Argument '{}' is not a list.", e))
             }
         }
     };
@@ -307,7 +307,7 @@ fn length() -> fn(Vec<Expr>) -> Result<Expr, String> {
                     length += 1;
                     expr = rest.as_ref()
                 }
-                _ => return Err(format!("Argument is not a list."))
+                e => return Err(format!("Argument '{}' is not a list.", e))
             };
         }
 
@@ -440,14 +440,14 @@ fn _parse_floats(args: Vec<Expr>) -> Result<Vec<f64>, String> {
     Ok(floats)
 }
 
-fn _car(expr: &Expr, ch: char) -> Result<Expr, String>{
+fn _car(expr: &Expr, ch: char) -> Result<Expr, String> {
     match expr {
         Expr::Pair(first, rest) => {
             let expr = if ch == 'a' { first } else { rest };
 
             Ok(expr.as_ref().clone())
-        },
-        _ => Err(format!("Argument is not a pair."))
+        }
+        e => Err(format!("Argument '{}' is not a pair.", e))
     }
 }
 
@@ -455,13 +455,13 @@ fn _car(expr: &Expr, ch: char) -> Result<Expr, String>{
 mod tests {
     use hamcrest2::prelude::*;
 
+    use crate::desugarizer::Desugarizer;
     use crate::error::Error;
     use crate::evaluator::Evaluator;
     use crate::lexer::Lexer;
     use crate::parser::Parser;
 
     use super::*;
-    use crate::desugarizer::Desugarizer;
 
     #[test]
     fn check_empty() {
@@ -559,13 +559,13 @@ mod tests {
         assert_invalid("(remainder 1)", "Exactly 2 arguments required.".to_string());
         assert_invalid("(remainder 1 2 3)", "Exactly 2 arguments required.".to_string());
         assert_invalid("(length)", "Exactly 1 argument required.".to_string());
-        assert_invalid("(length 1)", "Argument is not a list.".to_string());
+        assert_invalid("(length 1)", "Argument '1' is not a list.".to_string());
         assert_invalid("(remainder 1 0)", "Division by zero.".to_string());
-        assert_invalid("(append 1 0)", "Argument is not a list.".to_string());
+        assert_invalid("(append 1 0)", "Argument '1' is not a list.".to_string());
         assert_invalid("(car)", "Exactly 1 argument required.".to_string());
-        assert_invalid("(car 1)", "Argument is not a pair.".to_string());
+        assert_invalid("(car 1)", "Argument '1' is not a pair.".to_string());
         assert_invalid("(cdr)", "Exactly 1 argument required.".to_string());
-        assert_invalid("(cdr 1)", "Argument is not a pair.".to_string());
+        assert_invalid("(cdr 1)", "Argument '1' is not a pair.".to_string());
     }
 
     fn assert_eval(expr: &str, expected: Expr) {

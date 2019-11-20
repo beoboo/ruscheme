@@ -41,12 +41,12 @@
 
 (define (multiplicand p) (caddr p))
 
-;(display (deriv '(+ x 3) 'x))
-;(newline)
-;
-;(display (deriv '(* x y) 'x))
-;(newline)
-;
+(display (deriv '(+ x 3) 'x))
+(newline)
+
+(display (deriv '(* x y) 'x))
+(newline)
+
 (display (deriv '(* (* x y) (+ x 3)) 'x))
 (newline)
 

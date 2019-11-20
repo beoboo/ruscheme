@@ -47,7 +47,7 @@ impl Lexer {
                     } else {
                         return _report_error(format!("Invalid token: '{}'.", advance(&mut it)));
                     }
-                },
+                }
             }?;
 
             tokens.push(build_token(token_type, line));
@@ -105,7 +105,7 @@ fn number(it: &mut PeekableChar) -> Result<TokenType, Error> {
     };
 
     if !is_digit(peek(it)) {
-        return Ok(TokenType::Identifier(sign.to_string()))
+        return Ok(TokenType::Identifier(sign.to_string()));
     }
 
     let mut number = String::new();
