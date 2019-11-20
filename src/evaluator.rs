@@ -193,6 +193,7 @@ impl Evaluator {
         let expr = expr.as_ref();
 
         match expr {
+            Expr::Empty => Ok(expr.clone()),
             Expr::QuotedIdentifier(_) => Ok(expr.clone()),
             Expr::Pair(_, _) => Ok(expr.clone()),
             e => _report_error(format!("Invalid quote: '{}'", e))
@@ -405,8 +406,9 @@ mod tests {
     #[test]
     fn eval_quotes() {
         env_logger::init();
-//        assert_output("(quote a)", "a");
+        assert_output("(quote a)", "a");
         assert_output("'a", "a");
+        assert_output("'()", "()");
         assert_output("'(a b c)", "(a b c)");
         assert_output("(car '(a b c))", "a");
         assert_output("''(a b c)", "(quote (a b c))");

@@ -726,6 +726,11 @@ mod tests {
         assert_parse("'a",
                      Expr::Quote(Box::new(Expr::QuotedIdentifier("a".to_string()))),
         );
+        assert_parse("'()",
+                     Expr::Quote(Box::new(
+                         Expr::Empty,
+                     )),
+        );
         assert_parse("(quote (a b c))",
                      Expr::Quote(Box::new(
                          Expr::Pair(

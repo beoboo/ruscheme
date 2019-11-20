@@ -20,7 +20,6 @@ impl Printer {
         let mut it = tokens.iter();
         let mut res = String::new();
         let mut after_open_paren = true;
-        let mut before_paren = true;
 
         while let Some(t) = it.next() {
 //            println!("{}", t);

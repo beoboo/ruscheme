@@ -1,6 +1,3 @@
-use std::iter::Peekable;
-use std::str::Chars;
-
 use log::debug;
 
 use crate::error::{Error, report_stage_error};
@@ -101,6 +98,13 @@ mod tests {
     #[test]
     fn desugar_quote() {
 //        env_logger::init();
+        assert_valid("'()", vec![
+            TokenType::Paren('('),
+            TokenType::Quote,
+            TokenType::Paren('('),
+            TokenType::Paren(')'),
+            TokenType::Paren(')'),
+        ]);
         assert_valid("'a", vec![
             TokenType::Paren('('),
             TokenType::Quote,
