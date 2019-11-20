@@ -78,6 +78,20 @@ impl Expr {
             _ => false
         }
     }
+
+    pub fn is_number(&self) -> bool {
+        match *self {
+            Expr::Number(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_symbol(&self) -> bool {
+        match *self {
+            Expr::Identifier(_) | Expr::QuotedIdentifier(_) => true,
+            _ => false
+        }
+    }
 }
 
 impl fmt::Display for Expr {

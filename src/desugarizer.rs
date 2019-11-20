@@ -62,6 +62,7 @@ impl Desugarizer {
             let token = advance(it)?;
 
             match token.token_type {
+                TokenType::QuotationMark => self.quote(desugared, it, token.line)?,
                 TokenType::Paren('(') => {
                     self.expression(token, desugared, it)?
                 },
@@ -133,19 +134,30 @@ mod tests {
             TokenType::Paren(')'),
             TokenType::Paren(')'),
         ]);
+        assert_valid("'('a)", vec![
+            TokenType::Paren('('),
+            TokenType::Quote,
+            TokenType::Paren('('),
+            TokenType::Paren('('),
+            TokenType::Quote,
+            TokenType::Identifier("a".to_string()),
+            TokenType::Paren(')'),
+            TokenType::Paren(')'),
+            TokenType::Paren(')'),
+        ]);
     }
 
     fn assert_valid(source: &str, expected: Vec<TokenType>) {
         debug!("Parsing: {}", source);
         let tokens = desugar(source).unwrap();
 
-        let expected_length = expected.len() +
-            if expected[expected.len() - 1] != TokenType::EOF { 1 } else { 0 };
+        let expected_length = expected.len() -
+            if expected[expected.len() - 1] == TokenType::EOF { 1 } else { 0 };
 
         for t in tokens.iter() {
             debug!("{:?}", t);
         }
-        assert_that!(tokens.len(), equal_to(expected_length));
+        assert_that!(tokens.len() - 1, equal_to(expected_length));
 
         for (i, token) in tokens.iter().enumerate() {
             if token.token_type == TokenType::EOF {

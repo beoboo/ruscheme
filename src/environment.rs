@@ -109,11 +109,13 @@ impl Environment {
         environment.define_func("newline", newline());
         environment.define_func("nil", nil());
         environment.define_func("null?", is_null());
+        environment.define_func("number?", is_number());
         environment.define_func("pair?", is_pair());
         environment.define_func("remainder", remainder());
         let now = SystemTime::now();
         environment.define_callable("runtime", Box::new(move |args| runtime(now, args)));
         environment.define_func("square", square());
+        environment.define_func("symbol?", is_symbol());
 
         environment
     }
@@ -269,11 +271,27 @@ fn is_null() -> fn(Vec<Expr>) -> Result<Expr, String> {
     }
 }
 
+fn is_number() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        _validate_num_args(&args, 1)?;
+
+        Ok(Expr::Bool(args[0].is_number()))
+    }
+}
+
 fn is_pair() -> fn(Vec<Expr>) -> Result<Expr, String> {
     |args: Vec<Expr>| -> Result<Expr, String> {
         _validate_num_args(&args, 1)?;
 
         Ok(Expr::Bool(args[0].is_pair()))
+    }
+}
+
+fn is_symbol() -> fn(Vec<Expr>) -> Result<Expr, String> {
+    |args: Vec<Expr>| -> Result<Expr, String> {
+        _validate_num_args(&args, 1)?;
+
+        Ok(Expr::Bool(args[0].is_symbol()))
     }
 }
 
@@ -443,6 +461,7 @@ mod tests {
     use crate::parser::Parser;
 
     use super::*;
+    use crate::desugarizer::Desugarizer;
 
     #[test]
     fn check_empty() {
@@ -523,6 +542,10 @@ mod tests {
         assert_eval("(pair? ())", Expr::Bool(false));
         assert_eval("(pair? (list 1 2))", Expr::Bool(true));
         assert_eval("(square 2)", Expr::Number(4.0));
+        assert_eval("(symbol? 'a)", Expr::Bool(true));
+        assert_eval("(symbol? 1)", Expr::Bool(false));
+        assert_eval("(number? 'a)", Expr::Bool(false));
+        assert_eval("(number? 1)", Expr::Bool(true));
     }
 
     #[test]
@@ -562,10 +585,12 @@ mod tests {
     fn eval(source: &str, globals: &mut Environment) -> Result<Expr, Error> {
         debug!("{}", source);
         let lexer = Lexer::new();
+        let desugarizer = Desugarizer::new();
         let parser = Parser::new();
         let evaluator = Evaluator::new();
 
         let tokens = lexer.lex(source)?;
+        let tokens = desugarizer.desugar(tokens)?;
         let exprs = parser.parse(tokens)?;
 
         let mut res = Err(Error::Evaluator(format!("No expressions to eval.")));
