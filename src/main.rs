@@ -14,6 +14,7 @@ use crate::error::*;
 use crate::evaluator::*;
 use crate::lexer::*;
 use crate::parser::*;
+use crate::printer::*;
 use crate::virtual_machine::*;
 
 mod compiler;
@@ -24,6 +25,7 @@ mod evaluator;
 mod expr;
 mod lexer;
 mod parser;
+mod printer;
 mod token;
 
 mod byte_code;

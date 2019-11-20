@@ -406,18 +406,18 @@ mod tests {
     fn eval_quotes() {
         env_logger::init();
 //        assert_output("(quote a)", "a");
-//        assert_output("'a", "a");
-//        assert_output("'(a b c)", "(a b c)");
-//        assert_output("(car '(a b c))", "a");
-//        assert_output("''(a b c)", "(quote (a b c))");
-//        assert_output("(list 'apple '(pear banana prune))", "(apple (pear banana prune))");
+        assert_output("'a", "a");
+        assert_output("'(a b c)", "(a b c)");
+        assert_output("(car '(a b c))", "a");
+        assert_output("''(a b c)", "(quote (a b c))");
+        assert_output("(list 'apple '(pear banana prune))", "(apple (pear banana prune))");
         assert_output("'((red shoes) (blue socks))", "((red shoes) (blue socks))");
-//        assert_output("(list 'quote '(a b c))", "(quote (a b c))");
-//        assert_output("(list 'car (list 'quote '(a b c)))", "(car (quote (a b c)))");
-//        assert_output("\
-//        (define (test1 x) (test2 x))\
-//        (define (test2 x) 1)\
-//        (test1 'a)", "1");
+        assert_output("(list 'quote '(a b c))", "(quote (a b c))");
+        assert_output("(list 'car (list 'quote '(a b c)))", "(car (quote (a b c)))");
+        assert_output("\
+        (define (test1 x) (test2 x))\
+        (define (test2 x) 1)\
+        (test1 'a)", "1");
     }
 
     #[test]
@@ -470,6 +470,7 @@ mod tests {
         let tokens = desugarizer.desugar(tokens)?;
         debug!("Tokens {:#?}", tokens);
         let exprs = parser.parse(tokens)?;
+        debug!("Exprs {:#?}", exprs);
 
         let mut res = Err(Error::Evaluator(format!("No expressions to eval.")));
 

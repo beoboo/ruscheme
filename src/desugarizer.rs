@@ -43,8 +43,7 @@ impl Desugarizer {
         match token.token_type {
             TokenType::QuotationMark => self.quote(desugared, it, token.line)?,
             TokenType::Paren('(') => {
-                desugared.push(token.clone());
-                self.expression(desugared, it, token.line)?
+                self.expression(token, desugared, it)?
             }
             _ => desugared.push(token.clone())
         };
@@ -54,12 +53,18 @@ impl Desugarizer {
         Ok(())
     }
 
-    fn expression(&self, desugared: &mut Vec<Token>, it: &mut PeekableToken, line: u32) -> Result<(), Error> {
+    fn expression(&self, token: Token, desugared: &mut Vec<Token>, it: &mut PeekableToken) -> Result<(), Error> {
+        debug!("Expression");
+
+        desugared.push(token.clone());
+
         loop {
             let token = advance(it)?;
 
             match token.token_type {
-                TokenType::Paren('(') => self.expression(desugared, it, token.line)?,
+                TokenType::Paren('(') => {
+                    self.expression(token, desugared, it)?
+                },
                 TokenType::Paren(')') => {
                     desugared.push(token.clone());
                     break;
@@ -115,6 +120,16 @@ mod tests {
             TokenType::Quote,
             TokenType::Paren('('),
             TokenType::Identifier("a".to_string()),
+            TokenType::Paren(')'),
+            TokenType::Paren(')'),
+        ]);
+        assert_valid("'((a))", vec![
+            TokenType::Paren('('),
+            TokenType::Quote,
+            TokenType::Paren('('),
+            TokenType::Paren('('),
+            TokenType::Identifier("a".to_string()),
+            TokenType::Paren(')'),
             TokenType::Paren(')'),
             TokenType::Paren(')'),
         ]);

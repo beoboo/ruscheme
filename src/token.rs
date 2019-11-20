@@ -40,6 +40,10 @@ impl Token {
             line,
         }
     }
+
+    pub fn is_eof(&self) -> bool {
+        self.token_type == TokenType::EOF
+    }
 }
 
 impl fmt::Display for TokenType {
@@ -63,6 +67,12 @@ impl fmt::Display for TokenType {
             TokenType::String(s) => write!(f, "{}", s),
             TokenType::EOF => write!(f, "EOF"),
         }
+    }
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.token_type)
     }
 }
 
