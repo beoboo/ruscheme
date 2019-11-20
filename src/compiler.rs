@@ -25,48 +25,84 @@ impl Compiler {
         }
 
         let mut it = tokens.iter().peekable();
-        let mut instructions = vec![];
 
         let token_type = peek(&mut it);
         if token_type == TokenType::EOF {
             return report_error("Unexpected EOF.");
         }
 
-        self.instructions(&mut instructions, &mut it)?;
-
-        Ok(instructions)
-    }
-
-    fn instructions(&self, instructions: &mut Instructions, it: &mut PeekableToken) -> Result<(), Error> {
-        loop {
-            if peek(it) == TokenType::EOF {
-                break;
-            }
-
-            let _instruction = self.primitive(instructions, it)?;
-        }
-
-        Ok(())
-    }
-
-    fn primitive(&self, instructions: &mut Instructions, it: &mut PeekableToken) -> Result<(), Error> {
-        match advance(it)?.token_type {
-            TokenType::Number(n) => self.constant(instructions, ByteCode::Constant(n)),
-            TokenType::Paren('(') => self.expression(instructions),
-            t => Err(Error::Compiler(format!("Undefined token type: '{}'", t)))
-        }
-    }
-
-    fn constant(&self, instructions: &mut Instructions, byte_code: ByteCode) -> Result<(), Error> {
-        instructions.push(byte_code);
-
-        Ok(())
-    }
-
-    fn expression(&self, _instructions: &mut Instructions) -> Result<(), Error> {
-        Ok(())
+        instructions(&mut it)
     }
 }
+
+fn instructions(it: &mut PeekableToken) -> Result<Instructions, Error> {
+    let mut instructions = vec![];
+
+    loop {
+        if peek(it) == TokenType::EOF {
+            break;
+        }
+
+        primitive(&mut instructions, it)?;
+    }
+
+    Ok(instructions)
+}
+
+fn primitive(instructions: &mut Instructions, it: &mut PeekableToken) -> Result<(), Error> {
+    match advance(it)?.token_type {
+        TokenType::Number(n) => constant(instructions, ByteCode::Constant(n)),
+        TokenType::Paren('(') => expression(instructions, it),
+        t => Err(Error::Compiler(format!("Undefined token type: '{}'", t)))
+    }
+}
+
+fn constant(instructions: &mut Instructions, byte_code: ByteCode) -> Result<(), Error> {
+    instructions.push(byte_code);
+
+    Ok(())
+}
+
+fn expression(instructions: &mut Instructions, it: &mut PeekableToken) -> Result<(), Error> {
+    let res = match advance(it)?.token_type {
+        TokenType::Identifier(i) => identifier(i, instructions, it),
+        t => report_error(format!("Undefined token type: '{}'", t))
+    };
+
+    consume(TokenType::Paren(')'), it, "Expected ')' after expression.")?;
+
+    res
+}
+
+fn identifier(id: String, instructions: &mut Instructions, it: &mut PeekableToken) -> Result<(), Error> {
+    match id.as_str() {
+        "+" => add(instructions, it),
+        i => report_error(format!("Unknown identifier: '{}'", i))
+    }
+}
+
+fn add(instructions: &mut Instructions, it: &mut PeekableToken) -> Result<(), Error> {
+    let mut count = 0;
+    loop {
+        match peek(it) {
+            TokenType::Number(n) => {
+                advance(it)?;
+                count += 1;
+                instructions.push(ByteCode::Constant(n));
+
+                if count > 1 {
+                    instructions.push(ByteCode::Add);
+                }
+            },
+            TokenType::Paren(')') => break,
+            t => return report_error(format!("Invalid token type: '{}'", t))
+        }
+    }
+
+    Ok(())
+}
+
+
 //
 //fn emit(byte_code: ByteCode, it: &mut PeekableToken) -> Result<ByteCode, Error> {
 //    advance(it)?;
@@ -101,15 +137,22 @@ mod tests {
 //            ByteCode::Return
         ]);
     }
-//
-//    #[test]
-//    fn compile_expressions() {
-//        assert_compile("(+ 137 349)", vec![
-//            ByteCode::Constant(137.0),
-//            ByteCode::Constant(349.0),
-//            ByteCode::Add,
-//        ]);
-//    }
+
+    #[test]
+    fn compile_expressions() {
+        assert_compile("(+ 137 349)", vec![
+            ByteCode::Constant(137.0),
+            ByteCode::Constant(349.0),
+            ByteCode::Add,
+        ]);
+        assert_compile("(+ 123 456 789)", vec![
+            ByteCode::Constant(123.0),
+            ByteCode::Constant(456.0),
+            ByteCode::Add,
+            ByteCode::Constant(789.0),
+            ByteCode::Add,
+        ]);
+    }
 
     fn compile(source: &str) -> Result<Vec<ByteCode>, Error> {
         debug!("Compiling: '{}'", source);

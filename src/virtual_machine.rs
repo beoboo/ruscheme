@@ -86,9 +86,18 @@ mod tests {
         assert_valid(vec![
             ByteCode::Constant(1.0),
             ByteCode::Constant(2.0),
-            ByteCode::Add
+            ByteCode::Add,
         ], vec![
             ByteCode::Constant(3.0)
+        ]);
+        assert_valid(vec![
+            ByteCode::Constant(1.0),
+            ByteCode::Constant(2.0),
+            ByteCode::Add,
+            ByteCode::Constant(3.0),
+            ByteCode::Add,
+        ], vec![
+            ByteCode::Constant(6.0)
         ]);
     }
 
