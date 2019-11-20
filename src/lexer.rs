@@ -23,7 +23,7 @@ impl Lexer {
             let ch = peek(&mut it);
             let token_type = match ch {
                 '+' | '-' | '0'..='9' => number(&mut it),
-                '*' | '/' | '=' | '<' | '>' => symbol(&mut it),
+//                '*' | '/' | '=' | '<' | '>' => symbol(&mut it),
                 '(' | ')' => paren(ch, &mut it),
                 ' ' | '\t' => {
                     advance(&mut it);
@@ -96,17 +96,18 @@ fn identifier(it: &mut PeekableChar) -> Result<TokenType, Error> {
 
 fn number(it: &mut PeekableChar) -> Result<TokenType, Error> {
     let c = peek(it);
+
     let sign = match c {
         '+' | '-' => {
+            if !is_digit(peek_next(it)) {
+                return identifier(it);
+            }
+
             advance(it);
             c
         }
         _ => '+'
     };
-
-    if !is_digit(peek(it)) {
-        return Ok(TokenType::Identifier(sign.to_string()));
-    }
 
     let mut number = String::new();
 
@@ -160,22 +161,6 @@ fn string(it: &mut PeekableChar) -> Result<TokenType, Error> {
     Ok(TokenType::String(string))
 }
 
-fn symbol(it: &mut PeekableChar) -> Result<TokenType, Error> {
-    let c = advance(it);
-    let mut op = c.to_string();
-
-    match c {
-        '>' | '<' => {
-            if peek(it) == '=' {
-                op.push(advance(it));
-            }
-        }
-        _ => {}
-    }
-
-    Ok(TokenType::Identifier(op))
-}
-
 fn build_token(token_type: TokenType, line: u32) -> Token {
     Token::new(token_type, line)
 }
@@ -189,13 +174,23 @@ fn is_digit(ch: char) -> bool {
 
 fn is_alphanum(ch: char) -> bool {
     match ch {
-        '0'..='9' | 'a'..='z' | 'A'..='Z' | '?' | '_' | '-' | '$' | '>' => true,
+        '0'..='9' | 'a'..='z' | 'A'..='Z' | '?' | '_' | '+' | '-' | '*' | '/' | '$' | '=' | '<' | '>' => true,
         _ => false
     }
 }
 
 fn peek(it: &mut PeekableChar) -> char {
     match it.peek() {
+        Some(t) => *t,
+        None => '\0'
+    }
+}
+
+fn peek_next(it: &mut PeekableChar) -> char {
+    let mut next_it = it.clone();
+    next_it.next();
+
+    match next_it.peek() {
         Some(t) => *t,
         None => '\0'
     }
@@ -226,6 +221,17 @@ mod tests {
 
         assert_that!(&tokens, len(1));
         assert_token(&tokens[0], &TokenType::EOF, 1);
+    }
+
+    #[test]
+    fn lex_compound() {
+        assert_lex("(+ 1 2)", vec![
+            TokenType::Paren('('),
+            TokenType::Identifier("+".to_string()),
+            TokenType::Number(1.0),
+            TokenType::Number(2.0),
+            TokenType::Paren(')'),
+        ]);
     }
 
     #[test]
@@ -290,7 +296,7 @@ mod tests {
 
     #[test]
     fn lex_identifiers() {
-        assert_lex("+ - * / plus_one right? an->arrow", vec![
+        assert_lex("+ - * / plus_one right? an->arrow =number?", vec![
             TokenType::Identifier("+".to_string()),
             TokenType::Identifier("-".to_string()),
             TokenType::Identifier("*".to_string()),
@@ -298,6 +304,7 @@ mod tests {
             TokenType::Identifier("plus_one".to_string()),
             TokenType::Identifier("right?".to_string()),
             TokenType::Identifier("an->arrow".to_string()),
+            TokenType::Identifier("=number?".to_string()),
         ]);
     }
 
@@ -337,10 +344,10 @@ mod tests {
     fn assert_lex(source: &str, expected: Vec<TokenType>) {
         let tokens = lex(source).unwrap();
 
-        let expected_length = expected.len() +
-            if expected[expected.len() - 1] != TokenType::EOF { 1 } else { 0 };
+        let expected_length = expected.len() -
+            if expected[expected.len() - 1] == TokenType::EOF { 1 } else { 0 };
 
-        assert_that!(tokens.len(), equal_to(expected_length));
+        assert_that!(tokens.len() -1, equal_to(expected_length));
 
         for (i, token) in tokens.iter().enumerate() {
             if token.token_type == TokenType::EOF {

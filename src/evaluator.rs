@@ -71,7 +71,7 @@ impl Evaluator {
                 Ok(expr) => if !_to_bool(expr) {
                     return Ok(Expr::Bool(false));
                 }
-                Err(e) => return _report_error(format!("Invalid expression: {}", e)),
+                Err(e) => return _report_error(format!("Invalid and expression: {}", e)),
             }
         }
 
@@ -172,7 +172,7 @@ impl Evaluator {
     fn eval_not(&self, expr: &Box<Expr>, env: &mut Environment) -> Result<Expr, Error> {
         match self.eval(expr.as_ref(), env) {
             Ok(expr) => Ok(Expr::Bool(!_to_bool(expr))),
-            Err(e) => _report_error(format!("Invalid expression: {}", e)),
+            Err(e) => _report_error(format!("Invalid not expression: {}", e)),
         }
     }
 
@@ -182,7 +182,7 @@ impl Evaluator {
                 Ok(expr) => if _to_bool(expr) {
                     return Ok(Expr::Bool(true));
                 }
-                Err(e) => return _report_error(format!("Invalid expression: {}", e)),
+                Err(e) => return _report_error(format!("Invalid or expression: {}", e)),
             }
         }
 

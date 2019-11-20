@@ -23,10 +23,6 @@
 
 (define (make-product m1 m2) (list '* m1 m2))
 
-(define (make-sum a1 a2) (list '+ a1 a2))
-
-(define (make-product m1 m2) (list '* m1 m2))
-
 (define (sum? x)
   (and (pair? x) (eq? (car x) '+)))
 
