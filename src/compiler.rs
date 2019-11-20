@@ -5,7 +5,7 @@ use log::debug;
 
 use crate::byte_code::*;
 use crate::error::{Error, report_stage_error};
-use crate::error::Error::UnterminatedInput;
+//use crate::error::Error::UnterminatedInput;
 use crate::token::*;
 
 #[derive(Debug)]
@@ -43,7 +43,7 @@ impl Compiler {
                 break;
             }
 
-            let instruction = self.primitive(instructions, it)?;
+            let _instruction = self.primitive(instructions, it)?;
         }
 
         Ok(())
@@ -63,16 +63,16 @@ impl Compiler {
         Ok(())
     }
 
-    fn expression(&self, instructions: &mut Instructions) -> Result<(), Error> {
+    fn expression(&self, _instructions: &mut Instructions) -> Result<(), Error> {
         Ok(())
     }
 }
-
-fn emit(byte_code: ByteCode, it: &mut PeekableToken) -> Result<ByteCode, Error> {
-    advance(it)?;
-
-    Ok(byte_code)
-}
+//
+//fn emit(byte_code: ByteCode, it: &mut PeekableToken) -> Result<ByteCode, Error> {
+//    advance(it)?;
+//
+//    Ok(byte_code)
+//}
 
 fn report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
     report_stage_error(err, "compiler")
@@ -125,10 +125,10 @@ mod tests {
 
         assert_that!(actual, equal_to(instructions));
     }
-
-    fn assert_invalid(source: &str, message: &str) {
-        let error = compile(source).unwrap_err();
-
-        assert_that!(error.to_string(), equal_to(message));
-    }
+//
+//    fn assert_invalid(source: &str, message: &str) {
+//        let error = compile(source).unwrap_err();
+//
+//        assert_that!(error.to_string(), equal_to(message));
+//    }
 }

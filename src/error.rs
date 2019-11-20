@@ -42,6 +42,7 @@ pub fn report_stage_error<S: Into<String>, T>(err: S, stage: &str) -> Result<T, 
         "lexer" => Err(Error::Lexer(error)),
         "evaluator" => Err(Error::Evaluator(error)),
         "parser" => Err(Error::Parser(error)),
+        "virtual_machine" => Err(Error::VirtualMachine(error)),
         _ => Err(Error::UndefinedStage(stage.into()))
     }
 }

@@ -7,15 +7,15 @@ use std::io::Write;
 
 use colored::*;
 
-use crate::compiler::*;
+//use crate::compiler::*;
 use crate::desugarizer::*;
 use crate::environment::*;
 use crate::error::*;
 use crate::evaluator::*;
 use crate::lexer::*;
 use crate::parser::*;
-use crate::printer::*;
-use crate::virtual_machine::*;
+//use crate::printer::*;
+//use crate::virtual_machine::*;
 
 mod compiler;
 mod desugarizer;

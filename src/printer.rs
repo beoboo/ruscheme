@@ -1,15 +1,10 @@
-use std::iter::Peekable;
-use std::str::Chars;
-
 use log::debug;
 
-use crate::error::{Error, report_stage_error};
+use crate::error::Error;
 use crate::token::*;
 
 #[derive(Debug)]
 pub struct Printer {}
-
-type PeekableChar<'a> = Peekable<Chars<'a>>;
 
 impl Printer {
     pub fn new() -> Printer {
@@ -76,12 +71,12 @@ mod tests {
         assert_print("'(+ 1 2)", "(quote (+ 1 2))");
         assert_print("'((a b) (c d))", "(quote ((a b) (c d)))");
     }
-
-    fn assert_invalid(source: &str, message: &str) {
-        let error = print(source).unwrap_err();
-
-        assert_that!(error.to_string(), equal_to(message));
-    }
+//
+//    fn assert_invalid(source: &str, message: &str) {
+//        let error = print(source).unwrap_err();
+//
+//        assert_that!(error.to_string(), equal_to(message));
+//    }
 
     fn assert_print(source: &str, expected: &str) {
         let res = print(source).unwrap();

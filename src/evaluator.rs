@@ -2,7 +2,7 @@ use log::debug;
 
 use crate::environment::Environment;
 use crate::error::{Error, report_stage_error};
-use crate::expr::{build_cons, Callable, Expr};
+use crate::expr::{Callable, Expr};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Evaluator {}
@@ -37,8 +37,8 @@ impl Evaluator {
             Expr::Number(_) => Ok(expr.clone()),
             Expr::Or(exprs) => self.eval_or(exprs, env),
             Expr::Pair(_, _) => Ok(expr.clone()),
-            Expr::Quote(expr) => self.eval_quote(expr, env),
-            Expr::QuotedIdentifier(s) => Ok(expr.clone()),
+            Expr::Quote(expr) => self.eval_quote(expr),
+            Expr::QuotedIdentifier(_) => Ok(expr.clone()),
             Expr::String(_) => Ok(expr.clone()),
             e => panic!("Unmapped expression: {}", e)
         }
@@ -189,7 +189,7 @@ impl Evaluator {
         Ok(Expr::Bool(false))
     }
 
-    fn eval_quote(&self, expr: &Box<Expr>, env: &mut Environment) -> Result<Expr, Error> {
+    fn eval_quote(&self, expr: &Box<Expr>) -> Result<Expr, Error> {
         let expr = expr.as_ref();
 
         match expr {
