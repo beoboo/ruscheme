@@ -55,5 +55,5 @@
   (* (sum f (+ a (/ dx 2 .0)) add-dx b)
     dx))
 
-(display (integral cube 0 1 0 .01))
-(display (integral cube 0 1 0 .001))
+(display (integral cube 0 1 0.01))
+(display (integral cube 0 1 0.001))

@@ -1,9 +1,10 @@
 use std::fmt;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ByteCode {
     Add,
     Constant(f64),
+    Sub,
 }
 
 impl fmt::Display for ByteCode {
@@ -11,6 +12,7 @@ impl fmt::Display for ByteCode {
         match self {
             ByteCode::Add => write!(f, "ADD"),
             ByteCode::Constant(n) => write!(f, "CONSTANT {}", n),
+            ByteCode::Sub => write!(f, "SUB"),
         }
     }
 }

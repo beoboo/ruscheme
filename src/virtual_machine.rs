@@ -26,20 +26,16 @@ impl VirtualMachine {
     fn _execute(&self, instruction: ByteCode, stack: &mut Instructions) -> Result<Instructions, Error> {
         match instruction {
             ByteCode::Add => {
-                let b = pop(stack)?;
-                let a = pop(stack)?;
-
-                let a = match a {
-                    ByteCode::Constant(c) => c,
-                    bc => return report_error(format!("Cannot add {}.", bc))
-                };
-
-                let b = match b {
-                    ByteCode::Constant(c) => c,
-                    bc => return report_error(format!("Cannot add {}.", bc))
-                };
+                let b = pop_number(stack)?;
+                let a = pop_number(stack)?;
 
                 push(stack, ByteCode::Constant(a + b))
+            }
+            ByteCode::Sub => {
+                let b = pop_number(stack)?;
+                let a = pop_number(stack)?;
+
+                push(stack, ByteCode::Constant(a - b))
             }
             ByteCode::Constant(_) => push(stack, instruction)
 //            _ => Err(Error::VirtualMachine(format!("Undefined instruction: '{}'", instruction)))
@@ -53,6 +49,15 @@ fn pop(stack: &mut Instructions) -> Result<ByteCode, Error> {
     match stack.pop() {
         Some(b) => Ok(b),
         None => report_error("Stack underflow.")
+    }
+}
+
+fn pop_number(stack: &mut Instructions) -> Result<f64, Error> {
+    let instruction = pop(stack)?;
+
+    match instruction {
+        ByteCode::Constant(c) => Ok(c),
+        bc => report_error(format!("Cannot add {}.", bc))
     }
 }
 
@@ -98,6 +103,17 @@ mod tests {
             ByteCode::Add,
         ], vec![
             ByteCode::Constant(6.0)
+        ]);
+    }
+
+    #[test]
+    fn exec_sub() {
+        assert_valid(vec![
+            ByteCode::Constant(1.0),
+            ByteCode::Constant(2.0),
+            ByteCode::Sub,
+        ], vec![
+            ByteCode::Constant(-1.0)
         ]);
     }
 

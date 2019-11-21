@@ -1,12 +1,11 @@
 use std::iter::Peekable;
 use std::slice::Iter;
 
-use log::debug;
-
 use crate::byte_code::*;
 use crate::error::{Error, report_stage_error};
-//use crate::error::Error::UnterminatedInput;
 use crate::token::*;
+
+use log::debug;
 
 #[derive(Debug)]
 pub struct Compiler {}
@@ -77,11 +76,12 @@ fn expression(instructions: &mut Instructions, it: &mut PeekableToken) -> Result
 fn identifier(id: String, instructions: &mut Instructions, it: &mut PeekableToken) -> Result<(), Error> {
     match id.as_str() {
         "+" => add(instructions, it),
+        "-" => sub(instructions, it),
         i => report_error(format!("Unknown identifier: '{}'", i))
     }
 }
 
-fn add(instructions: &mut Instructions, it: &mut PeekableToken) -> Result<(), Error> {
+fn binary_op(op: ByteCode, instructions: &mut Instructions, it: &mut PeekableToken) -> Result<(), Error> {
     let mut count = 0;
     loop {
         match peek(it) {
@@ -91,15 +91,23 @@ fn add(instructions: &mut Instructions, it: &mut PeekableToken) -> Result<(), Er
                 instructions.push(ByteCode::Constant(n));
 
                 if count > 1 {
-                    instructions.push(ByteCode::Add);
+                    instructions.push(op);
                 }
-            },
+            }
             TokenType::Paren(')') => break,
             t => return report_error(format!("Invalid token type: '{}'", t))
         }
     }
 
     Ok(())
+}
+
+fn add(instructions: &mut Instructions, it: &mut PeekableToken) -> Result<(), Error> {
+    binary_op(ByteCode::Add, instructions, it)
+}
+
+fn sub(instructions: &mut Instructions, it: &mut PeekableToken) -> Result<(), Error> {
+    binary_op(ByteCode::Sub, instructions, it)
 }
 
 
@@ -119,10 +127,11 @@ fn report_error<S: Into<String>, T>(err: S) -> Result<T, Error> {
 mod tests {
     use hamcrest2::prelude::*;
 
-    use crate::byte_code::ByteCode;
+    use crate::byte_code::ByteCode::*;
     use crate::lexer::Lexer;
 
     use super::*;
+
 
     #[test]
     fn compile_empty() {
@@ -133,24 +142,29 @@ mod tests {
     #[test]
     fn compile_numbers() {
         assert_compile("486", vec![
-            ByteCode::Constant(486.0),
-//            ByteCode::Return
+            Constant(486.0),
+//            Return
         ]);
     }
 
     #[test]
     fn compile_expressions() {
         assert_compile("(+ 137 349)", vec![
-            ByteCode::Constant(137.0),
-            ByteCode::Constant(349.0),
-            ByteCode::Add,
+            Constant(137.0),
+            Constant(349.0),
+            Add,
+        ]);
+        assert_compile("(- 137 349)", vec![
+            Constant(137.0),
+            Constant(349.0),
+            Sub,
         ]);
         assert_compile("(+ 123 456 789)", vec![
-            ByteCode::Constant(123.0),
-            ByteCode::Constant(456.0),
-            ByteCode::Add,
-            ByteCode::Constant(789.0),
-            ByteCode::Add,
+            Constant(123.0),
+            Constant(456.0),
+            Add,
+            Constant(789.0),
+            Add,
         ]);
     }
 

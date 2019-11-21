@@ -11,7 +11,7 @@
   (/ (+ x y) 2))
 
 (define (good-enough? guess x)
-  (< (abs (- (square guess) x)) 0 .001))
+  (< (abs (- (square guess) x)) 0.001))
 
 (define (abs x)
   (cond ((< x 0) (- x))
@@ -21,7 +21,7 @@
   (* x x))
 
 (define (sqrt x)
-  (sqrt-iter 1 .0 x))
+  (sqrt-iter 1.0 x))
 
 (display (sqrt 9))
 

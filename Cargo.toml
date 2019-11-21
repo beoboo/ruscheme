@@ -5,6 +5,7 @@ authors = ["Pietrino Atzeni <pietrino.atzeni@moneyfarm.com>"]
 edition = "2018"
 
 [dependencies]
+clap = "*"
 colored = "*"
 log = "*"
 env_logger = "*"

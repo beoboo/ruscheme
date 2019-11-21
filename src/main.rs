@@ -1,13 +1,15 @@
+extern crate clap;
 #[cfg(test)]
 #[macro_use]
 extern crate hamcrest2;
 
-use std::{env, fs, io};
+use std::{fs, io};
 use std::io::Write;
 
+use clap::{App, Arg};
 use colored::*;
 
-//use crate::compiler::*;
+use crate::compiler::*;
 use crate::desugarizer::*;
 use crate::environment::*;
 use crate::error::*;
@@ -15,7 +17,7 @@ use crate::evaluator::*;
 use crate::lexer::*;
 use crate::parser::*;
 //use crate::printer::*;
-//use crate::virtual_machine::*;
+use crate::virtual_machine::*;
 
 mod byte_code;
 mod compiler;
@@ -34,15 +36,29 @@ mod virtual_machine;
 fn main() {
     env_logger::init();
 
-    let args: Vec<String> = env::args().collect();
-    if args.len() == 1 {
-        repl();
-    } else if args.len() == 2 {
-        run_file(&args[1])
+    let matches = App::new("ruscheme")
+        .arg(Arg::with_name("filename")
+            .short("f")
+            .long("filename")
+            .takes_value(true)
+            .help("File to run")
+        )
+        .arg(
+            Arg::with_name("use-compiler")
+                .long("use-compiler")
+                .help("Use compiler instead of interpreter")
+        ).get_matches();
+
+    let use_compiler = matches.is_present("use-compiler");
+
+    if let Some(filename) = matches.value_of("filename") {
+        run_file(filename, use_compiler)
+    } else {
+        repl(use_compiler)
     }
 }
 
-fn repl() {
+fn repl(use_compiler: bool) {
     let mut globals = Environment::global();
     let mut source = String::new();
 
@@ -56,7 +72,7 @@ fn repl() {
         if io::stdin().read_line(&mut line).is_ok() {
             source += line.as_str();
 
-            match run(&source, &mut globals, true) {
+            match run(&source, &mut globals, use_compiler, true) {
                 Err(e) => {
                     match e {
                         Error::UnterminatedInput => {
@@ -79,20 +95,27 @@ fn repl() {
     }
 }
 
-fn run_file(filename: &String) {
+fn run_file(filename: &str, use_compiler: bool) {
     let mut globals = Environment::global();
 
     let source: String = fs::read_to_string(filename)
         .expect(format!("Cannot read {}", filename).as_str());
 
-    match run(&source, &mut globals, false) {
+    match run(&source, &mut globals, use_compiler, false) {
         Err(e) => eprintln!("{}", format!("{}", e).red()),
         _ => (),
     };
 }
 
-#[cfg(not(feature = "compiler"))]
-fn run(source: &str, globals: &mut Environment, print_output: bool) -> Result<(), Error> {
+fn run(source: &str, globals: &mut Environment, use_compiler: bool, print_output: bool) -> Result<(), Error> {
+    if use_compiler {
+        run_compiler(&source, print_output)
+    } else {
+        run_interpreter(&source, globals, print_output)
+    }
+}
+
+fn run_interpreter(source: &str, globals: &mut Environment, print_output: bool) -> Result<(), Error> {
     let lexer = Lexer::new();
     let tokens = lexer.lex(source)?;
 
@@ -135,8 +158,7 @@ fn run(source: &str, globals: &mut Environment, print_output: bool) -> Result<()
     Ok(())
 }
 
-#[cfg(feature = "compiler")]
-fn run(source: &str, globals: &mut Environment, print_output: bool) -> Result<(), Error> {
+fn run_compiler(source: &str, print_output: bool) -> Result<(), Error> {
     let lexer: Lexer = Lexer::new();
     let tokens = lexer.lex(source)?;
 
@@ -164,13 +186,14 @@ fn run(source: &str, globals: &mut Environment, print_output: bool) -> Result<()
     let vm: VirtualMachine = VirtualMachine::new();
 
     match vm.execute(instructions) {
-//        Ok(res) => {
-//            if print_output {
-//                println!("{}", res.to_string().green());
-//            }
-//        },
+        Ok(res) => {
+            if print_output {
+                for byte_code in res {
+                    println!("{}", format!("{}", byte_code).green());
+                }
+            }
+        },
         Err(e) => return Err(e),
-        _ => {}
     }
 
     Ok(())
