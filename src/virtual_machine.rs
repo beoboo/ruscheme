@@ -57,7 +57,7 @@ fn pop_number(stack: &mut Instructions) -> Result<f64, Error> {
 
     match instruction {
         ByteCode::Constant(c) => Ok(c),
-        bc => report_error(format!("Cannot add {}.", bc))
+        bc => report_error(format!("'{}' is not a number.", bc))
     }
 }
 
